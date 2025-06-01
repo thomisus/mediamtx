@@ -11,21 +11,21 @@ dockerhub:
 	docker build --builder=builder \
 	-f docker/ffmpeg-rpi.Dockerfile . \
 	--platform=linux/arm/v6,linux/arm/v7,linux/arm64 \
-	-t $(DOCKER_REPOSITORY):ffmpeg-rpi:$(VERSION) \
+	-t $(DOCKER_REPOSITORY):ffmpeg-rpi-$(VERSION) \
 	-t $(DOCKER_REPOSITORY):ffmpeg-rpi \
 	--push
 
 	docker build --builder=builder \
 	-f docker/rpi.Dockerfile . \
 	--platform=linux/arm/v6,linux/arm/v7,linux/arm64 \
-	-t $(DOCKER_REPOSITORY):rpi:$(VERSION) \
+	-t $(DOCKER_REPOSITORY):rpi-$(VERSION) \
 	-t $(DOCKER_REPOSITORY):rpi \
 	--push
 
 	docker build --builder=builder \
 	-f docker/ffmpeg.Dockerfile . \
 	--platform=linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64 \
-	-t $(DOCKER_REPOSITORY):ffmpeg:$(VERSION) \
+	-t $(DOCKER_REPOSITORY):ffmpeg-$(VERSION) \
 	-t $(DOCKER_REPOSITORY):ffmpeg \
 	--push
 
@@ -39,7 +39,7 @@ dockerhub:
 	docker build --builder=builder \
 	-f docker/ffmpeg-hardware.Dockerfile . \
 	--platform=linux/amd64 \
-	-t $(DOCKER_REPOSITORY):ffmpeg-hardware:$(VERSION) \
+	-t $(DOCKER_REPOSITORY):ffmpeg-hardware-$(VERSION) \
 	-t $(DOCKER_REPOSITORY):ffmpeg-hardware \
 	--push
 
