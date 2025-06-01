@@ -36,7 +36,7 @@ dockerhub:
 	-t $(DOCKER_REPOSITORY):latest \
 	--push
 
-    docker build --builder=builder \
+	docker build --builder=builder \
 	-f docker/ffmpeg-hardware.Dockerfile . \
 	--platform=linux/amd64 \
 	-t $(DOCKER_REPOSITORY):$(VERSION)-ffmpeg-hardware \
