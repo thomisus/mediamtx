@@ -1,9 +1,9 @@
 DOCKER_REPOSITORY = thomisus/mediamtx
 
-dockerhub:
+github:
 	$(eval VERSION := $(shell git describe --tags | tr -d v))
 
-	docker login -u $(DOCKER_USER) -p $(DOCKER_PASSWORD)
+	docker login $(env.REGISTRY) -u $(DOCKER_USER) -p $(DOCKER_PASSWORD)
 
 	docker buildx rm builder 2>/dev/null || true
 	docker buildx create --name=builder
