@@ -1,4 +1,4 @@
-DOCKER_REPOSITORY = bluenviron/mediamtx
+DOCKER_REPOSITORY = thomisus/mediamtx
 
 dockerhub:
 	$(eval VERSION := $(shell git describe --tags | tr -d v))
@@ -34,6 +34,13 @@ dockerhub:
 	--platform=linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64 \
 	-t $(DOCKER_REPOSITORY):$(VERSION) \
 	-t $(DOCKER_REPOSITORY):latest \
+	--push
+
+    docker build --builder=builder \
+	-f docker/ffmpeg-hardware.Dockerfile . \
+	--platform=linux/amd64 \
+	-t $(DOCKER_REPOSITORY):$(VERSION)-ffmpeg-hardware \
+	-t $(DOCKER_REPOSITORY):latest-ffmpeg-hardware \
 	--push
 
 	docker buildx rm builder
