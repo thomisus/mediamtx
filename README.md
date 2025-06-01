@@ -2597,7 +2597,7 @@ The official Docker image can be recompiled by following these steps:
    docker build . -f docker/standard.Dockerfile -t my-mediamtx
    ```
 
-   A Dockerfile is available for each image variant (`standard.Dockerfile`, `ffmpeg.Dockerfile`, `rpi.Dockerfile`, `ffmpeg-rpi.Dockerfile`).
+   A Dockerfile is available for each image variant (`standard.Dockerfile`, `ffmpeg.Dockerfile`, `ffmpeg-hardware.Dockerfile`, `rpi.Dockerfile`, `ffmpeg-rpi.Dockerfile`).
 
 ## License
 
