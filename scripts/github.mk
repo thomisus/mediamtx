@@ -1,4 +1,5 @@
 DOCKER_REPOSITORY = thomisus/mediamtx
+REGISTRY = ghcr.io
 
 github:
 	$(eval VERSION := $(shell git describe --tags | tr -d v))
@@ -11,36 +12,36 @@ github:
 	docker build --builder=builder \
 	-f docker/ffmpeg-rpi.Dockerfile . \
 	--platform=linux/arm/v6,linux/arm/v7,linux/arm64 \
-	-t $(DOCKER_REPOSITORY):ffmpeg-rpi-$(VERSION) \
-	-t $(DOCKER_REPOSITORY):ffmpeg-rpi \
+	-t $(REGISTRY)/$(DOCKER_REPOSITORY):ffmpeg-rpi-$(VERSION) \
+	-t $(REGISTRY)/$(DOCKER_REPOSITORY):ffmpeg-rpi \
 	--push
 
 	docker build --builder=builder \
 	-f docker/rpi.Dockerfile . \
 	--platform=linux/arm/v6,linux/arm/v7,linux/arm64 \
-	-t $(DOCKER_REPOSITORY):rpi-$(VERSION) \
-	-t $(DOCKER_REPOSITORY):rpi \
+	-t $(REGISTRY)/$(DOCKER_REPOSITORY):rpi-$(VERSION) \
+	-t $(REGISTRY)/$(DOCKER_REPOSITORY):rpi \
 	--push
 
 	docker build --builder=builder \
 	-f docker/ffmpeg.Dockerfile . \
 	--platform=linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64 \
-	-t $(DOCKER_REPOSITORY):ffmpeg-$(VERSION) \
-	-t $(DOCKER_REPOSITORY):ffmpeg \
+	-t $(REGISTRY)/$(DOCKER_REPOSITORY):ffmpeg-$(VERSION) \
+	-t $(REGISTRY)/$(DOCKER_REPOSITORY):ffmpeg \
 	--push
 
 	docker build --builder=builder \
 	-f docker/standard.Dockerfile . \
 	--platform=linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64 \
-	-t $(DOCKER_REPOSITORY):$(VERSION) \
-	-t $(DOCKER_REPOSITORY):latest \
+	-t $(REGISTRY)/$(DOCKER_REPOSITORY):$(VERSION) \
+	-t $(REGISTRY)/$(DOCKER_REPOSITORY):latest \
 	--push
 
 	docker build --builder=builder \
 	-f docker/ffmpeg-hardware.Dockerfile . \
 	--platform=linux/amd64 \
-	-t $(DOCKER_REPOSITORY):ffmpeg-hardware-$(VERSION) \
-	-t $(DOCKER_REPOSITORY):ffmpeg-hardware \
+	-t $(REGISTRY)/$(DOCKER_REPOSITORY):ffmpeg-hardware-$(VERSION) \
+	-t $(REGISTRY)/$(DOCKER_REPOSITORY):ffmpeg-hardware \
 	--push
 
 	docker buildx rm builder
