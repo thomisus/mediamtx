@@ -44,4 +44,11 @@ github:
 	-t $(REGISTRY)/$(DOCKER_REPOSITORY):ffmpeg-hardware \
 	--push
 
+	docker build --builder=builder \
+	-f docker/ffmpeg-v7-hardware.Dockerfile . \
+	--platform=linux/amd64 \
+	-t $(REGISTRY)/$(DOCKER_REPOSITORY):ffmpeg-v7-hardware-$(VERSION) \
+	-t $(REGISTRY)/$(DOCKER_REPOSITORY):ffmpeg-v7-hardware \
+	--push
+
 	docker buildx rm builder
