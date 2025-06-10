@@ -33,8 +33,8 @@ github.com/asticode/go-astits v1.13.0 h1:XOgkaadfZODnyZRR5Y0/DWkA9vrkLLPLeeOvDwf
 github.com/asticode/go-astits v1.13.0/go.mod h1:QSHmknZ51pf6KJdHKZHJTLlMegIrhega3LPWz3ND/iI=
 github.com/benburkert/openpgp v0.0.0-20160410205803-c2471f86866c h1:8XZeJrs4+ZYhJeJ2aZxADI2tGADS15AzIF8MQ8XAhT4=
 github.com/benburkert/openpgp v0.0.0-20160410205803-c2471f86866c/go.mod h1:x1vxHcL/9AVzuk5HOloOEPrtJY0MaalYr78afXZ+pWI=
-github.com/bluenviron/gohlslib/v2 v2.1.5 h1:QHd58aavGqksCtEB63amdB2Y9//phOChxN15uPg/wK4=
-github.com/bluenviron/gohlslib/v2 v2.1.5/go.mod h1:sLyKB5iM6Su1kucNHuDUU9aeN/Hw4WxsV2y9k2IHMGs=
+github.com/bluenviron/gohlslib/v2 v2.2.0 h1:eIsCai3IHP0F538h2tCPCRkhQ7XSOaxeceMyPns0o1k=
+github.com/bluenviron/gohlslib/v2 v2.2.0/go.mod h1:sLyKB5iM6Su1kucNHuDUU9aeN/Hw4WxsV2y9k2IHMGs=
 github.com/bluenviron/gortsplib/v4 v4.14.1 h1:v99NmXeeJFfbrO+ipPzPxYGibQaR5ZOUESOA9UQZhsI=
 github.com/bluenviron/gortsplib/v4 v4.14.1/go.mod h1:3LaEcg0d47+kfXju5KSlsSxCiZ3IKBI/sqIrBPcsS64=
 github.com/bluenviron/mediacommon/v2 v2.2.0 h1:fGXEX0OEvv5VhGHOv3Q2ABzOtSkIpl9UbwOHrnKWNTk=
@@ -79,8 +79,8 @@ github.com/go-git/go-billy/v5 v5.6.2 h1:6Q86EsPXMa7c3YZ3aLAQsMA0VlWmy43r6FHqa/UN
 github.com/go-git/go-billy/v5 v5.6.2/go.mod h1:rcFC2rAsp/erv7CMz9GczHcuD0D32fWzH+MJAU+jaUU=
 github.com/go-git/go-git-fixtures/v4 v4.3.2-0.20231010084843-55a94097c399 h1:eMje31YglSBqCdIqdhKBW8lokaMrL3uTkpGYlE2OOT4=
 github.com/go-git/go-git-fixtures/v4 v4.3.2-0.20231010084843-55a94097c399/go.mod h1:1OCfN199q1Jm3HZlxleg+Dw/mwps2Wbk9frAWm+4FII=
-github.com/go-git/go-git/v5 v5.16.1 h1:TuxMBWNL7R05tXsUGi0kh1vi4tq0WfXNLlIrAkXG1k8=
-github.com/go-git/go-git/v5 v5.16.1/go.mod h1:4Ge4alE/5gPs30F2H1esi2gPd69R0C39lolkucHBOp8=
+github.com/go-git/go-git/v5 v5.16.2 h1:fT6ZIOjE5iEnkzKyxTHK1W4HGAsPhqEqiSAssSO77hM=
+github.com/go-git/go-git/v5 v5.16.2/go.mod h1:4Ge4alE/5gPs30F2H1esi2gPd69R0C39lolkucHBOp8=
 github.com/go-logr/logr v1.4.3 h1:CjnDlHq8ikf6E492q6eKboGOC0T8CDaOvkHCIg8idEI=
 github.com/go-logr/logr v1.4.3/go.mod h1:9T104GzyrTigFIr8wt5mBrctHMim0Nb2HLGrmQ40KvY=
 github.com/go-playground/assert/v2 v2.2.0 h1:JvknZsQTYeFEAhQwI4qEt9cyV5ONwRHC+lYKSsYSR8s=
@@ -157,8 +157,8 @@ github.com/pion/datachannel v1.5.10 h1:ly0Q26K1i6ZkGf42W7D4hQYR90pZwzFOjTq5AuCKk
 github.com/pion/datachannel v1.5.10/go.mod h1:p/jJfC9arb29W7WrxyKbepTU20CFgyx5oLo8Rs4Py/M=
 github.com/pion/dtls/v3 v3.0.4 h1:44CZekewMzfrn9pmGrj5BNnTMDCFwr+6sLH+cCuLM7U=
 github.com/pion/dtls/v3 v3.0.4/go.mod h1:R373CsjxWqNPf6MEkfdy3aSe9niZvL/JaKlGeFphtMg=
-github.com/pion/interceptor v0.1.38 h1:Mgt3XIIq47uR5vcLLahfRucE6tFPjxHak+z5ZZFEzLU=
-github.com/pion/interceptor v0.1.38/go.mod h1:HS9X+Ue5LDE6q2C2tuvOuO83XkBdJFgn6MBDtfoJX4Q=
+github.com/pion/interceptor v0.1.39 h1:Y6k0bN9Y3Lg/Wb21JBWp480tohtns8ybJ037AGr9UuA=
+github.com/pion/interceptor v0.1.39/go.mod h1:Z6kqH7M/FYirg3frjGJ21VLSRJGBXB/KqaTIrdqnOic=
 github.com/pion/logging v0.2.3 h1:gHuf0zpoh1GW67Nr6Gj4cv5Z9ZscU7g/EaoC/Ke/igI=
 github.com/pion/logging v0.2.3/go.mod h1:z8YfknkquMe1csOrxK5kc+5/ZPAzMxbKLX5aXpbpC90=
 github.com/pion/mdns/v2 v2.0.7 h1:c9kM8ewCgjslaAmicYMFQIde2H9/lrZpjBkN8VwoVtM=

@@ -9,7 +9,7 @@ require (
 	github.com/abema/go-mp4 v1.4.1
 	github.com/alecthomas/kong v1.11.0
 	github.com/asticode/go-astits v1.13.0
-	github.com/bluenviron/gohlslib/v2 v2.1.5
+	github.com/bluenviron/gohlslib/v2 v2.2.0
 	github.com/bluenviron/gortsplib/v4 v4.14.1
 	github.com/bluenviron/mediacommon/v2 v2.2.0
 	github.com/datarhei/gosrt v0.9.0
@@ -17,7 +17,7 @@ require (
 	github.com/gin-contrib/pprof v1.5.3
 	github.com/gin-gonic/gin v1.10.1
 	github.com/go-git/go-billy/v5 v5.6.2
-	github.com/go-git/go-git/v5 v5.16.1
+	github.com/go-git/go-git/v5 v5.16.2
 	github.com/golang-jwt/jwt/v5 v5.2.2
 	github.com/google/uuid v1.6.0
 	github.com/gookit/color v1.5.4
@@ -25,7 +25,7 @@ require (
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/matthewhartstonge/argon2 v1.3.2
 	github.com/pion/ice/v4 v4.0.7
-	github.com/pion/interceptor v0.1.38
+	github.com/pion/interceptor v0.1.39
 	github.com/pion/logging v0.2.3
 	github.com/pion/rtcp v1.2.15
 	github.com/pion/rtp v1.8.18
