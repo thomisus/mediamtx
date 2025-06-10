@@ -67,7 +67,7 @@ jobs:
             + 'You can verify that binaries have been produced by the workflow by using [GitHub Attestations](https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations/using-artifact-attestations-to-establish-provenance-for-builds):\n'
             + `\n`
             + '```\n'
-            + `ls mediamtx_* | xargs -L1 gh attestation verify --repo bluenviron/mediamtx\n`
+            + `ls mediamtx_* | xargs -L1 gh attestation verify --repo thomisus/mediamtx\n`
             + '```\n'
             + `\n`
             + 'You can verify the binaries checksum by downloading `checksums.sha256` and running:\n'
