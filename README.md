@@ -301,7 +301,14 @@ The RTSP protocol supports multiple underlying transport protocols, each with it
 
 ```sh
 gst-launch-1.0 filesrc location=file.mp4 ! qtdemux name=d \
-d.video_0 ! rtspclientsink protocols=tcp name=s location=rtsp://localhost:8554/mystream
+d.video_0 ! rtspclientsink location=rtsp://localhost:8554/mystream protocols=tcp
+```
+
+If encryption is enabled, the `tls-validation-flags` and `profiles` options must be specified too:
+
+```sh
+gst-launch-1.0 filesrc location=file.mp4 ! qtdemux name=d \
+d.video_0 ! rtspclientsink location=rtsp://localhost:8554/mystream tls-validation-flags=0 profiles=GST_RTSP_PROFILE_SAVP
 ```
 
 The resulting stream is available in path `/mystream`.
@@ -2253,7 +2260,7 @@ go tool pprof -text http://localhost:9999/debug/pprof/profile?seconds=30
 
 #### Standard stream ID syntax
 
-In SRT, the stream ID is a string that is sent to the counterpart in order to advertise what action the caller is gonna do (publish or read), the path and the credentials. All these informations have to be encoded into a single string. This server supports two stream ID syntaxes, a custom one (that is the one reported in rest of the README) and also a [standard one](https://github.com/Haivision/srt/blob/master/docs/features/access-control.md) proposed by the authors of the protocol and sometimes enforced by some hardware. The standard syntax can be used in this way:
+In SRT, the stream ID is a string that is sent to the remote part in order to advertise what action the caller is gonna do (publish or read), the path and the credentials. All these informations have to be encoded into a single string. This server supports two stream ID syntaxes, a custom one (that is the one reported in rest of the README) and also a [standard one](https://github.com/Haivision/srt/blob/master/docs/features/access-control.md) proposed by the authors of the protocol and enforced by some hardware. The standard syntax can be used in this way:
 
 ```
 srt://localhost:8890?streamid=#!::m=publish,r=mypath,u=myuser,s=mypass&pkt_size=1316
@@ -2407,9 +2414,9 @@ ffmpeg -i rtsp://original-source \
 
 The RTSP protocol supports different underlying transport protocols, that are chosen by clients during the handshake with the server:
 
-* UDP: the most performant, but doesn't work when there's a NAT/firewall between server and clients. It doesn't support encryption.
-* UDP-multicast: allows to save bandwidth when clients are all in the same LAN, by sending packets once to a fixed multicast IP. It doesn't support encryption.
-* TCP: the most versatile, does support encryption.
+* UDP: the most performant, but doesn't work when there's a NAT/firewall between server and clients.
+* UDP-multicast: allows to save bandwidth when clients are all in the same LAN, by sending packets once to a fixed multicast IP.
+* TCP: the most versatile.
 
 The default transport protocol is UDP. To change the transport protocol, you have to tune the configuration of your client of choice.
 
@@ -2422,10 +2429,9 @@ openssl genrsa -out server.key 2048
 openssl req -new -x509 -sha256 -key server.key -out server.crt -days 3650
 ```
 
-Edit `mediamtx.yml` and set the `rtspTransports`, `encryption`, `serverKey` and serverCert parameters:
+Edit `mediamtx.yml` and set the `encryption`, `serverKey` and serverCert parameters:
 
 ```yml
-rtspTransports: [tcp]
 rtspEncryption: optional
 rtspServerKey: server.key
 rtspServerCert: server.crt
