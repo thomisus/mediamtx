@@ -12,11 +12,12 @@ import (
 	"github.com/bluenviron/mediamtx/internal/defs"
 	"github.com/bluenviron/mediamtx/internal/logger"
 	sshls "github.com/bluenviron/mediamtx/internal/staticsources/hls"
+	ssmpegts "github.com/bluenviron/mediamtx/internal/staticsources/mpegts"
 	ssrpicamera "github.com/bluenviron/mediamtx/internal/staticsources/rpicamera"
 	ssrtmp "github.com/bluenviron/mediamtx/internal/staticsources/rtmp"
+	ssrtp "github.com/bluenviron/mediamtx/internal/staticsources/rtp"
 	ssrtsp "github.com/bluenviron/mediamtx/internal/staticsources/rtsp"
 	sssrt "github.com/bluenviron/mediamtx/internal/staticsources/srt"
-	ssudp "github.com/bluenviron/mediamtx/internal/staticsources/udp"
 	sswebrtc "github.com/bluenviron/mediamtx/internal/staticsources/webrtc"
 	"github.com/bluenviron/mediamtx/internal/stream"
 )
@@ -117,8 +118,10 @@ func (s *Handler) Initialize() {
 			Parent:      s,
 		}
 
-	case strings.HasPrefix(s.Conf.Source, "udp://"):
-		s.instance = &ssudp.Source{
+	case strings.HasPrefix(s.Conf.Source, "udp://") ||
+		strings.HasPrefix(s.Conf.Source, "udp+mpegts://") ||
+		strings.HasPrefix(s.Conf.Source, "unix+mpegts://"):
+		s.instance = &ssmpegts.Source{
 			ReadTimeout: s.ReadTimeout,
 			Parent:      s,
 		}
@@ -132,6 +135,13 @@ func (s *Handler) Initialize() {
 	case strings.HasPrefix(s.Conf.Source, "whep://") ||
 		strings.HasPrefix(s.Conf.Source, "wheps://"):
 		s.instance = &sswebrtc.Source{
+			ReadTimeout: s.ReadTimeout,
+			Parent:      s,
+		}
+
+	case strings.HasPrefix(s.Conf.Source, "udp+rtp://") ||
+		strings.HasPrefix(s.Conf.Source, "unix+rtp://"):
+		s.instance = &ssrtp.Source{
 			ReadTimeout: s.ReadTimeout,
 			Parent:      s,
 		}

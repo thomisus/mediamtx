@@ -146,12 +146,20 @@ type Path struct {
 	SRTPublishPassphrase     string `json:"srtPublishPassphrase"`
 
 	// RTSP source
-	RTSPTransport       RTSPTransport  `json:"rtspTransport"`
-	RTSPAnyPort         bool           `json:"rtspAnyPort"`
-	SourceProtocol      *RTSPTransport `json:"sourceProtocol,omitempty"`      // deprecated
-	SourceAnyPortEnable *bool          `json:"sourceAnyPortEnable,omitempty"` // deprecated
-	RTSPRangeType       RTSPRangeType  `json:"rtspRangeType"`
-	RTSPRangeStart      string         `json:"rtspRangeStart"`
+	RTSPTransport         RTSPTransport  `json:"rtspTransport"`
+	RTSPAnyPort           bool           `json:"rtspAnyPort"`
+	SourceProtocol        *RTSPTransport `json:"sourceProtocol,omitempty"`      // deprecated
+	SourceAnyPortEnable   *bool          `json:"sourceAnyPortEnable,omitempty"` // deprecated
+	RTSPRangeType         RTSPRangeType  `json:"rtspRangeType"`
+	RTSPRangeStart        string         `json:"rtspRangeStart"`
+	RTSPUDPReadBufferSize uint           `json:"rtspUDPReadBufferSize"`
+
+	// MPEG-TS source
+	MPEGTSUDPReadBufferSize uint `json:"mpegtsUDPReadBufferSize"`
+
+	// RTP source
+	RTPSDP               string `json:"rtpSDP"`
+	RTPUDPReadBufferSize uint   `json:"rtpUDPReadBufferSize"`
 
 	// Redirect source
 	SourceRedirect string `json:"sourceRedirect"`
@@ -419,7 +427,30 @@ func (pconf *Path) validate(
 	case strings.HasPrefix(pconf.Source, "udp://"):
 		_, _, err := net.SplitHostPort(pconf.Source[len("udp://"):])
 		if err != nil {
-			return fmt.Errorf("'%s' is not a valid UDP URL", pconf.Source)
+			return fmt.Errorf("'%s' is not a valid UDP+MPEGTS URL", pconf.Source)
+		}
+
+	case strings.HasPrefix(pconf.Source, "udp+mpegts://"):
+		_, _, err := net.SplitHostPort(pconf.Source[len("udp+mpegts://"):])
+		if err != nil {
+			return fmt.Errorf("'%s' is not a valid UDP+MPEGTS URL", pconf.Source)
+		}
+
+	case strings.HasPrefix(pconf.Source, "unix+mpegts://"):
+
+	case strings.HasPrefix(pconf.Source, "udp+rtp://"):
+		_, _, err := net.SplitHostPort(pconf.Source[len("udp+rtp://"):])
+		if err != nil {
+			return fmt.Errorf("'%s' is not a valid UDP+RTP URL", pconf.Source)
+		}
+
+		if pconf.RTPSDP == "" {
+			return fmt.Errorf("`rtpSDP` was not provided")
+		}
+
+	case strings.HasPrefix(pconf.Source, "unix+rtp://"):
+		if pconf.RTPSDP == "" {
+			return fmt.Errorf("`rtpSDP` was not provided")
 		}
 
 	case strings.HasPrefix(pconf.Source, "srt://"):

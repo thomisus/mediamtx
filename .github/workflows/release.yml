@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
 
     - run: make binaries
 
@@ -41,12 +41,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@v5
       with:
         name: binaries
         path: binaries
 
-    - uses: actions/github-script@v6
+    - uses: actions/github-script@v7
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         script: |
@@ -105,7 +105,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/github-script@v6
+    - uses: actions/github-script@v7
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         script: |
@@ -152,9 +152,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
 
-    - uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@v5
       with:
         name: binaries
         path: binaries
@@ -169,16 +169,16 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
 
     - run: make apidocs
 
-    - run: mv apidocs/*.html apidocs/index.html
+    - run: mv api/*.html api/index.html
 
-    - uses: peaceiris/actions-gh-pages@v3
+    - uses: peaceiris/actions-gh-pages@v4
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_dir: ./apidocs
+        publish_dir: ./api
 
   docker_github:
     needs: binaries
@@ -200,7 +200,3 @@ jobs:
         REGISTRY: ${{ env.REGISTRY }}
         DOCKER_USER: ${{ github.actor }}
         DOCKER_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-
-
-
-

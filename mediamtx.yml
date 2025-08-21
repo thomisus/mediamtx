@@ -277,6 +277,10 @@ rtspServerCert: server.crt
 # Authentication methods. Available are "basic" and "digest".
 # "digest" doesn't provide any additional security and is available for compatibility only.
 rtspAuthMethods: [basic]
+# Size of the UDP buffer of the RTSP server.
+# This can be increased to mitigate packet losses.
+# It defaults to the default value of the operating system.
+rtspUDPReadBufferSize: 0
 
 ###############################################
 # Global settings -> RTMP server
@@ -438,7 +442,10 @@ pathDefaults:
   # * rtmps://existing-url -> the stream is pulled from another RTMP server / camera with RTMPS
   # * http://existing-url/stream.m3u8 -> the stream is pulled from another HLS server / camera
   # * https://existing-url/stream.m3u8 -> the stream is pulled from another HLS server / camera with HTTPS
-  # * udp://ip:port -> the stream is pulled with UDP, by listening on the specified IP and port
+  # * udp+mpegts://ip:port -> the stream is pulled from MPEG-TS over UDP, by listening on the specified address
+  # * unix+mpegts://socket -> the stream is pulled from MPEG-TS over Unix socket, by using the socket
+  # * udp+rtp://ip:port -> the stream is pulled from RTP over UDP, by listening on the specified address
+  # * unix+rtp://socket -> the stream is pulled from RTP over Unix socket, by using the socket
   # * srt://existing-url -> the stream is pulled from another SRT server / camera
   # * whep://existing-url -> the stream is pulled from another WebRTC server / camera
   # * wheps://existing-url -> the stream is pulled from another WebRTC server / camera with HTTPS
@@ -527,6 +534,28 @@ pathDefaults:
   # * npt: duration such as "300ms", "1.5m" or "2h45m", valid time units are "ns", "us" (or "µs"), "ms", "s", "m", "h"
   # * smpte: duration such as "300ms", "1.5m" or "2h45m", valid time units are "ns", "us" (or "µs"), "ms", "s", "m", "h"
   rtspRangeStart:
+  # Size of the UDP buffer of the RTSP client.
+  # This can be increased to mitigate packet losses.
+  # It defaults to the default value of the operating system.
+  rtspUDPReadBufferSize: 0
+
+  ###############################################
+  # Default path settings -> MPEG-TS source (when source is MPEG-TS)
+
+  # Size of the UDP buffer of the MPEG-TS client.
+  # This can be increased to mitigate packet losses.
+  # It defaults to the default value of the operating system.
+  mpegtsUDPReadBufferSize: 0
+
+  ###############################################
+  # Default path settings -> RTP source (when source is RTP)
+
+  # session description protocol (SDP) of the RTP stream.
+  rtpSDP:
+  # Size of the UDP buffer of the RTP client.
+  # This can be increased to mitigate packet losses.
+  # It defaults to the default value of the operating system.
+  rtpUDPReadBufferSize: 0
 
   ###############################################
   # Default path settings -> Redirect source (when source is "redirect")

@@ -71,7 +71,7 @@ func TestSource(t *testing.T) {
 				require.NoError(t, err2)
 				offer := whipOffer(body)
 
-				answer, err2 := pc.CreateFullAnswer(context.Background(), offer)
+				answer, err2 := pc.CreateFullAnswer(offer)
 				require.NoError(t, err2)
 
 				w.Header().Set("Content-Type", "application/sdp")
@@ -82,7 +82,7 @@ func TestSource(t *testing.T) {
 				w.Write([]byte(answer.SDP))
 
 				go func() {
-					err3 := pc.WaitUntilConnected(context.Background())
+					err3 := pc.WaitUntilConnected()
 					require.NoError(t, err3)
 
 					err3 = outgoingTracks[0].WriteRTP(&rtp.Packet{
@@ -138,14 +138,20 @@ func TestSource(t *testing.T) {
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	defer ctxCancel()
 
+	reloadConf := make(chan *conf.Path)
+
 	go func() {
 		so.Run(defs.StaticSourceRunParams{ //nolint:errcheck
 			Context:        ctx,
 			ResolvedSource: "whep://localhost:9003/my/resource",
 			Conf:           &conf.Path{},
+			ReloadConf:     reloadConf,
 		})
 		close(done)
 	}()
 
 	<-p.Unit
+
+	// the source must be listening on ReloadConf
+	reloadConf <- nil
 }
