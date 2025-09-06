@@ -3,7 +3,7 @@ module github.com/bluenviron/mediamtx
 go 1.24.0
 
 require (
-	code.cloudfoundry.org/bytefmt v0.47.0
+	code.cloudfoundry.org/bytefmt v0.49.0
 	github.com/MicahParks/jwkset v0.9.6
 	github.com/MicahParks/keyfunc/v3 v3.6.1
 	github.com/abema/go-mp4 v1.4.1
@@ -20,7 +20,7 @@ require (
 	github.com/go-git/go-git/v5 v5.16.2
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/google/uuid v1.6.0
-	github.com/gookit/color v1.5.4
+	github.com/gookit/color v1.6.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/matthewhartstonge/argon2 v1.3.4
@@ -28,10 +28,10 @@ require (
 	github.com/pion/interceptor v0.1.40
 	github.com/pion/logging v0.2.4
 	github.com/pion/rtcp v1.2.15
-	github.com/pion/rtp v1.8.21
-	github.com/pion/sdp/v3 v3.0.15
-	github.com/pion/webrtc/v4 v4.1.3
-	github.com/stretchr/testify v1.10.0
+	github.com/pion/rtp v1.8.22
+	github.com/pion/sdp/v3 v3.0.16
+	github.com/pion/webrtc/v4 v4.1.4
+	github.com/stretchr/testify v1.11.1
 	golang.org/x/crypto v0.41.0
 	golang.org/x/sys v0.35.0
 	golang.org/x/term v0.34.0
@@ -69,14 +69,14 @@ require (
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.3 // indirect
 	github.com/pion/datachannel v1.5.10 // indirect
-	github.com/pion/dtls/v3 v3.0.6 // indirect
+	github.com/pion/dtls/v3 v3.0.7 // indirect
 	github.com/pion/mdns/v2 v2.0.7 // indirect
 	github.com/pion/randutil v0.1.0 // indirect
 	github.com/pion/sctp v1.8.39 // indirect
-	github.com/pion/srtp/v3 v3.0.6 // indirect
+	github.com/pion/srtp/v3 v3.0.7 // indirect
 	github.com/pion/stun/v3 v3.0.0 // indirect
 	github.com/pion/transport/v3 v3.0.7 // indirect
-	github.com/pion/turn/v4 v4.0.0 // indirect
+	github.com/pion/turn/v4 v4.1.1 // indirect
 	github.com/pjbgf/sha1cd v0.3.2 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/sergi/go-diff v1.3.2-0.20230802210424-5b0b94c5c0d3 // indirect
@@ -85,7 +85,7 @@ require (
 	github.com/ugorji/go/codec v1.2.12 // indirect
 	github.com/wlynxg/anet v0.0.5 // indirect
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
-	github.com/xo/terminfo v0.0.0-20210125001918-ca9a967f8778 // indirect
+	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	golang.org/x/arch v0.16.0 // indirect
 	golang.org/x/net v0.43.0 // indirect
 	golang.org/x/text v0.28.0 // indirect

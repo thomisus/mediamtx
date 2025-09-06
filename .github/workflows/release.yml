@@ -27,7 +27,7 @@ jobs:
 
     - run: cd binaries && sha256sum -b * > checksums.sha256
 
-    - uses: actions/attest-build-provenance@v2
+    - uses: actions/attest-build-provenance@v3
       with:
         subject-path: '${{ github.workspace }}/binaries/*'
 
@@ -46,7 +46,7 @@ jobs:
         name: binaries
         path: binaries
 
-    - uses: actions/github-script@v7
+    - uses: actions/github-script@v8
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         script: |
@@ -65,8 +65,8 @@ jobs:
             + `\n`
             + `## Security\n`
             + `\n`
-            + `Binaries have been produced by the [Release workflow](https://github.com/${owner}/${repo}/actions/workflows/release.yml)`
-            + ` without human intervention.\n`
+            + `Binaries are compiled from source through the [Release workflow](https://github.com/${owner}/${repo}/actions/workflows/release.yml) without human intervention,`
+            + ` preventing any external interference.`
             + `\n`
             + 'You can verify that binaries have been produced by the workflow by using [GitHub Attestations](https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations/using-artifact-attestations-to-establish-provenance-for-builds):\n'
             + `\n`
@@ -105,7 +105,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/github-script@v7
+    - uses: actions/github-script@v8
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         script: |

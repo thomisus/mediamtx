@@ -1,69 +1,45 @@
 <h1 align="center">
-  <img src="logo.png" alt="MediaMTX / rtsp-simple-server">
+  <a href="https://mediamtx.org">
+    <img src="logo.png" alt="MediaMTX">
+  </a>
 
   <br>
   <br>
 
+  [![Website](https://img.shields.io/badge/website-mediamtx.org-1c94b5)](https://mediamtx.org)
   [![Test](https://github.com/bluenviron/mediamtx/actions/workflows/code_test.yml/badge.svg)](https://github.com/bluenviron/mediamtx/actions/workflows/code_test.yml)
   [![Lint](https://github.com/bluenviron/mediamtx/actions/workflows/code_lint.yml/badge.svg)](https://github.com/bluenviron/mediamtx/actions/workflows/code_lint.yml)
   [![CodeCov](https://codecov.io/gh/bluenviron/mediamtx/branch/main/graph/badge.svg)](https://app.codecov.io/gh/bluenviron/mediamtx/tree/main)
   [![Release](https://img.shields.io/github/v/release/bluenviron/mediamtx)](https://github.com/bluenviron/mediamtx/releases)
   [![Docker Hub](https://img.shields.io/badge/docker-bluenviron/mediamtx-blue)](https://hub.docker.com/r/bluenviron/mediamtx)
-  [![API Documentation](https://img.shields.io/badge/api-documentation-blue)](https://bluenviron.github.io/mediamtx)
 </h1>
 
 <br>
 
 _MediaMTX_ is a ready-to-use and zero-dependency real-time media server and media proxy that allows to publish, read, proxy, record and playback video and audio streams. It has been conceived as a "media router" that routes media streams from one end to the other.
 
-Live streams can be published to the server with:
+<div align="center">
 
-|protocol|variants|video codecs|audio codecs|
-|--------|--------|------------|------------|
-|[SRT clients](#srt-clients)||H265, H264, MPEG-4 Video (H263, Xvid), MPEG-1/2 Video|Opus, MPEG-4 Audio (AAC), MPEG-1/2 Audio (MP3), AC-3|
-|[SRT cameras and servers](#srt-cameras-and-servers)||H265, H264, MPEG-4 Video (H263, Xvid), MPEG-1/2 Video|Opus, MPEG-4 Audio (AAC), MPEG-1/2 Audio (MP3), AC-3|
-|[WebRTC clients](#webrtc-clients)|WHIP|AV1, VP9, VP8, [H265](#supported-browsers), H264|Opus, G722, G711 (PCMA, PCMU)|
-|[WebRTC servers](#webrtc-servers)|WHEP|AV1, VP9, VP8, [H265](#supported-browsers), H264|Opus, G722, G711 (PCMA, PCMU)|
-|[RTSP clients](#rtsp-clients)|UDP, TCP, RTSPS|AV1, VP9, VP8, H265, H264, MPEG-4 Video (H263, Xvid), MPEG-1/2 Video, M-JPEG and any RTP-compatible codec|Opus, MPEG-4 Audio (AAC), MPEG-1/2 Audio (MP3), AC-3, G726, G722, G711 (PCMA, PCMU), LPCM and any RTP-compatible codec|
-|[RTSP cameras and servers](#rtsp-cameras-and-servers)|UDP, UDP-Multicast, TCP, RTSPS|AV1, VP9, VP8, H265, H264, MPEG-4 Video (H263, Xvid), MPEG-1/2 Video, M-JPEG and any RTP-compatible codec|Opus, MPEG-4 Audio (AAC), MPEG-1/2 Audio (MP3), AC-3, G726, G722, G711 (PCMA, PCMU), LPCM and any RTP-compatible codec|
-|[RTMP clients](#rtmp-clients)|RTMP, RTMPS, Enhanced RTMP|AV1, VP9, H265, H264|Opus, MPEG-4 Audio (AAC), MPEG-1/2 Audio (MP3), AC-3, G711 (PCMA, PCMU), LPCM|
-|[RTMP cameras and servers](#rtmp-cameras-and-servers)|RTMP, RTMPS, Enhanced RTMP|AV1, VP9, H265, H264|Opus, MPEG-4 Audio (AAC), MPEG-1/2 Audio (MP3), AC-3, G711 (PCMA, PCMU), LPCM|
-|[HLS cameras and servers](#hls-cameras-and-servers)|Low-Latency HLS, MP4-based HLS, legacy HLS|AV1, VP9, [H265](#supported-browsers-1), H264|Opus, MPEG-4 Audio (AAC)|
-|[MPEG-TS](#mpeg-ts)|MPEG-TS over UDP, MPEG-TS over Unix sockets|H265, H264, MPEG-4 Video (H263, Xvid), MPEG-1/2 Video|Opus, MPEG-4 Audio (AAC), MPEG-1/2 Audio (MP3), AC-3|
-|[RTP](#rtp)|RTP over UDP, RTP over Unix sockets|AV1, VP9, VP8, H265, H264, MPEG-4 Video (H263, Xvid), MPEG-1/2 Video, M-JPEG and any RTP-compatible codec|Opus, MPEG-4 Audio (AAC), MPEG-1/2 Audio (MP3), AC-3, G726, G722, G711 (PCMA, PCMU), LPCM and any RTP-compatible codec|
-|[Raspberry Pi Cameras](#raspberry-pi-cameras)||H264||
+  |[Installation](https://mediamtx.org/docs/kickoff/installation)|[Documentation](https://mediamtx.org/docs/kickoff/introduction)|
+  |-|-|
 
-Live streams can be read from the server with:
+</div>
 
-|protocol|variants|video codecs|audio codecs|
-|--------|--------|------------|------------|
-|[SRT](#srt)||H265, H264, MPEG-4 Video (H263, Xvid), MPEG-1/2 Video|Opus, MPEG-4 Audio (AAC), MPEG-1/2 Audio (MP3), AC-3|
-|[WebRTC](#webrtc)|WHEP|AV1, VP9, VP8, [H265](#supported-browsers), H264|Opus, G722, G711 (PCMA, PCMU)|
-|[RTSP](#rtsp)|UDP, UDP-Multicast, TCP, RTSPS|AV1, VP9, VP8, H265, H264, MPEG-4 Video (H263, Xvid), MPEG-1/2 Video, M-JPEG and any RTP-compatible codec|Opus, MPEG-4 Audio (AAC), MPEG-1/2 Audio (MP3), AC-3, G726, G722, G711 (PCMA, PCMU), LPCM and any RTP-compatible codec|
-|[RTMP](#rtmp)|RTMP, RTMPS, Enhanced RTMP|H264|MPEG-4 Audio (AAC), MPEG-1/2 Audio (MP3)|
-|[HLS](#hls)|Low-Latency HLS, MP4-based HLS, legacy HLS|AV1, VP9, [H265](#supported-browsers-1), H264|Opus, MPEG-4 Audio (AAC)|
+<h3>Features</h3>
 
-Live streams be recorded and played back with:
-
-|format|video codecs|audio codecs|
-|------|------------|------------|
-|[fMP4](#record-streams-to-disk)|AV1, VP9, H265, H264, MPEG-4 Video (H263, Xvid), MPEG-1/2 Video, M-JPEG|Opus, MPEG-4 Audio (AAC), MPEG-1/2 Audio (MP3), AC-3, G711 (PCMA, PCMU), LPCM|
-|[MPEG-TS](#record-streams-to-disk)|H265, H264, MPEG-4 Video (H263, Xvid), MPEG-1/2 Video|Opus, MPEG-4 Audio (AAC), MPEG-1/2 Audio (MP3), AC-3|
-
-**Features**
-
-* Publish live streams to the server
-* Read live streams from the server
+* [Publish](https://mediamtx.org/docs/usage/publish) live streams to the server with SRT, WebRTC, RTSP, RTMP, HLS, MPEG-TS, RTP
+* [Read](https://mediamtx.org/docs/usage/read) live streams from the server with SRT, WebRTC, RTSP, RTMP, HLS
 * Streams are automatically converted from a protocol to another
 * Serve several streams at once in separate paths
-* Record streams to disk
-* Playback recorded streams
-* Authenticate users
-* Redirect readers to other RTSP servers (load balancing)
-* Control the server through the Control API
+* [Record](https://mediamtx.org/docs/usage/record) streams to disk in fMP4 or MPEG-TS format
+* [Playback](https://mediamtx.org/docs/usage/playback) recorded streams
+* [Authenticate](https://mediamtx.org/docs/usage/authentication) users with internal, HTTP or JWT authentication
+* [Forward](https://mediamtx.org/docs/usage/forward) streams to other servers
+* [Proxy](https://mediamtx.org/docs/usage/proxy) requests to other servers
+* [Control](https://mediamtx.org/docs/usage/control-api) the server through the Control API
 * Reload the configuration without disconnecting existing clients (hot reloading)
-* Read Prometheus-compatible metrics
-* Run hooks (external commands) when clients connect, disconnect, read or publish streams
+* [Monitor](https://mediamtx.org/docs/usage/metrics) the server through Prometheus-compatible metrics
+* [Run hooks](https://mediamtx.org/docs/usage/hooks) (external commands) when clients connect, disconnect, read or publish streams
 * Compatible with Linux, Windows and macOS, does not require any dependency or interpreter, it's a single executable
 
 **Note about rtsp-simple-server**
@@ -2737,7 +2713,7 @@ The official Docker image can be recompiled by following these steps:
    docker build . -f docker/standard.Dockerfile -t my-mediamtx
    ```
 
-   A Dockerfile is available for each image variant (`standard.Dockerfile`, `ffmpeg.Dockerfile`, `ffmpeg-hardware.Dockerfile`, `rpi.Dockerfile`, `ffmpeg-rpi.Dockerfile`).
+   A Dockerfile is available for each image variant (`standard.Dockerfile`, `ffmpeg.Dockerfile`, `rpi.Dockerfile`, `ffmpeg-rpi.Dockerfile`).
 
 ## License
 
