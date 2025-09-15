@@ -12,15 +12,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bluenviron/gortmplib"
 	"github.com/bluenviron/gortsplib/v4"
 	"github.com/bluenviron/gortsplib/v4/pkg/description"
+	"github.com/bluenviron/gortsplib/v4/pkg/format"
 	"github.com/bluenviron/mediacommon/v2/pkg/formats/mpegts"
 	srt "github.com/datarhei/gosrt"
 	"github.com/pion/rtp"
 	pwebrtc "github.com/pion/webrtc/v4"
 	"github.com/stretchr/testify/require"
 
-	"github.com/bluenviron/mediamtx/internal/protocols/rtmp"
 	"github.com/bluenviron/mediamtx/internal/protocols/webrtc"
 	"github.com/bluenviron/mediamtx/internal/protocols/whip"
 	"github.com/bluenviron/mediamtx/internal/test"
@@ -208,7 +209,7 @@ webrtc_sessions_rtcp_packets_sent 0
 			u, err2 := url.Parse("rtmp://localhost:1935/rtmp_path")
 			require.NoError(t, err2)
 
-			conn := &rtmp.Client{
+			conn := &gortmplib.Client{
 				URL:     u,
 				Publish: true,
 			}
@@ -216,14 +217,14 @@ webrtc_sessions_rtcp_packets_sent 0
 			require.NoError(t, err2)
 			defer conn.Close()
 
-			w := &rtmp.Writer{
-				Conn:       conn,
-				VideoTrack: test.FormatH264,
+			w := &gortmplib.Writer{
+				Conn:   conn,
+				Tracks: []format.Format{test.FormatH264},
 			}
 			err2 = w.Initialize()
 			require.NoError(t, err2)
 
-			err2 = w.WriteH264(2*time.Second, 2*time.Second, [][]byte{{5, 2, 3, 4}})
+			err2 = w.WriteH264(test.FormatH264, 2*time.Second, 2*time.Second, [][]byte{{5, 2, 3, 4}})
 			require.NoError(t, err2)
 
 			<-terminate
@@ -235,7 +236,7 @@ webrtc_sessions_rtcp_packets_sent 0
 			u, err2 := url.Parse("rtmps://localhost:1936/rtmps_path")
 			require.NoError(t, err2)
 
-			conn := &rtmp.Client{
+			conn := &gortmplib.Client{
 				URL:       u,
 				TLSConfig: &tls.Config{InsecureSkipVerify: true},
 				Publish:   true,
@@ -244,14 +245,14 @@ webrtc_sessions_rtcp_packets_sent 0
 			require.NoError(t, err2)
 			defer conn.Close()
 
-			w := &rtmp.Writer{
-				Conn:       conn,
-				VideoTrack: test.FormatH264,
+			w := &gortmplib.Writer{
+				Conn:   conn,
+				Tracks: []format.Format{test.FormatH264},
 			}
 			err2 = w.Initialize()
 			require.NoError(t, err2)
 
-			err2 = w.WriteH264(2*time.Second, 2*time.Second, [][]byte{{5, 2, 3, 4}})
+			err2 = w.WriteH264(test.FormatH264, 2*time.Second, 2*time.Second, [][]byte{{5, 2, 3, 4}})
 			require.NoError(t, err2)
 
 			<-terminate

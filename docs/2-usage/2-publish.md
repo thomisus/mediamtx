@@ -17,7 +17,6 @@ Live streams can be published to the server with the following protocols and cod
 | [HLS cameras and servers](#hls-cameras-and-servers)   | Low-Latency HLS, MP4-based HLS, legacy HLS  | AV1, VP9, H265, H264                                                                                      | Opus, MPEG-4 Audio (AAC)                                                                                               |
 | [MPEG-TS](#mpeg-ts)                                   | MPEG-TS over UDP, MPEG-TS over Unix sockets | H265, H264, MPEG-4 Video (H263, Xvid), MPEG-1/2 Video                                                     | Opus, MPEG-4 Audio (AAC), MPEG-1/2 Audio (MP3), AC-3                                                                   |
 | [RTP](#rtp)                                           | RTP over UDP, RTP over Unix sockets         | AV1, VP9, VP8, H265, H264, MPEG-4 Video (H263, Xvid), MPEG-1/2 Video, M-JPEG and any RTP-compatible codec | Opus, MPEG-4 Audio (AAC), MPEG-1/2 Audio (MP3), AC-3, G726, G722, G711 (PCMA, PCMU), LPCM and any RTP-compatible codec |
-| [Raspberry Pi Cameras](#raspberry-pi-cameras)         |                                             | H264                                                                                                      |                                                                                                                        |
 
 We provide instructions for publishing with the following devices:
 
@@ -26,7 +25,7 @@ We provide instructions for publishing with the following devices:
 
 We provide instructions for publishing with the following software:
 
-- [FFmpeg](#ffmeg)
+- [FFmpeg](#ffmpeg)
 - [GStreamer](#gstreamer)
 - [OBS Studio](#obs-studio)
 - [OpenCV](#opencv)
@@ -97,7 +96,7 @@ paths:
 
 ### RTSP clients
 
-RTSP is a protocol that allows to publish and read streams. It supports several underlying transport protocols and allows to encrypt streams in transit (see [RTSP-specific features](rtsp-specific-features)). In order to publish a stream to the server with the RTSP protocol, use this URL:
+RTSP is a protocol that allows to publish and read streams. It supports several underlying transport protocols and encryption (see [RTSP-specific features](rtsp-specific-features)). In order to publish a stream to the server with the RTSP protocol, use this URL:
 
 ```
 rtsp://localhost:8554/mystream
@@ -335,7 +334,7 @@ docker run --rm -it \
 bluenviron/mediamtx:latest-rpi
 ```
 
-Be aware that precompiled binaries and Docker images are not compatible with cameras that require a custom `libcamera` (like some ArduCam products), since they come with a bundled `libcamera`. If you want to use a custom one, you can [compile from source](/docs/compile#custom-libcamera).
+Be aware that precompiled binaries and Docker images are not compatible with cameras that require a custom `libcamera` (like some ArduCam products), since they come with a bundled `libcamera`. If you want to use a custom one, you can [compile from source](/docs/other/compile#custom-libcamera).
 
 Camera settings can be changed by using the `rpiCamera*` parameters:
 
@@ -751,4 +750,4 @@ This web page can be embedded into another web page by using an iframe:
 <iframe src="http://mediamtx-ip:8889/mystream/publish" scrolling="no"></iframe>
 ```
 
-For more advanced setups, you can create and serve a custom web page by starting from the [source code of the WebRTC publish page](internal/servers/webrtc/publish_index.html). In particular, there's a ready-to-use, standalone JavaScript class for publishing streams with WebRTC, available in [publisher.js](internal/servers/webrtc/publisher.js).
+For more advanced setups, you can create and serve a custom web page by starting from the [source code of the WebRTC publish page](https://github.com/bluenviron/mediamtx/blob/{version_tag}/internal/servers/webrtc/publish_index.html). In particular, there's a ready-to-use, standalone JavaScript class for publishing streams with WebRTC, available in [publisher.js](https://github.com/bluenviron/mediamtx/blob/{version_tag}/internal/servers/webrtc/publisher.js).

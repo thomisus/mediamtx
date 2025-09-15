@@ -20,8 +20,8 @@ import (
 	"github.com/bluenviron/mediacommon/v2/pkg/formats/fmp4"
 	"github.com/bluenviron/mediacommon/v2/pkg/formats/mp4"
 
+	"github.com/bluenviron/mediamtx/internal/codecprocessor"
 	"github.com/bluenviron/mediamtx/internal/defs"
-	"github.com/bluenviron/mediamtx/internal/formatprocessor"
 	"github.com/bluenviron/mediamtx/internal/logger"
 	"github.com/bluenviron/mediamtx/internal/unit"
 )
@@ -158,13 +158,9 @@ func (f *formatFMP4) initialize() bool {
 						paramsChanged := false
 
 						for _, obu := range tunit.TU {
-							var h av1.OBUHeader
-							err := h.Unmarshal(obu)
-							if err != nil {
-								return err
-							}
+							typ := av1.OBUType((obu[0] >> 3) & 0b1111)
 
-							if h.Type == av1.OBUTypeSequenceHeader {
+							if typ == av1.OBUTypeSequenceHeader {
 								if !bytes.Equal(codec.SequenceHeader, obu) {
 									codec.SequenceHeader = obu
 									paramsChanged = true
@@ -285,11 +281,10 @@ func (f *formatFMP4) initialize() bool {
 
 			case *rtspformat.H265:
 				vps, sps, pps := forma.SafeParams()
-
 				if vps == nil || sps == nil || pps == nil {
-					vps = formatprocessor.H265DefaultVPS
-					sps = formatprocessor.H265DefaultSPS
-					pps = formatprocessor.H265DefaultPPS
+					vps = codecprocessor.H265DefaultVPS
+					sps = codecprocessor.H265DefaultSPS
+					pps = codecprocessor.H265DefaultPPS
 				}
 
 				codec := &mp4.CodecH265{
@@ -376,10 +371,9 @@ func (f *formatFMP4) initialize() bool {
 
 			case *rtspformat.H264:
 				sps, pps := forma.SafeParams()
-
 				if sps == nil || pps == nil {
-					sps = formatprocessor.H264DefaultSPS
-					pps = formatprocessor.H264DefaultPPS
+					sps = codecprocessor.H264DefaultSPS
+					pps = codecprocessor.H264DefaultPPS
 				}
 
 				codec := &mp4.CodecH264{
@@ -460,7 +454,7 @@ func (f *formatFMP4) initialize() bool {
 				config := forma.SafeParams()
 
 				if config == nil {
-					config = formatprocessor.MPEG4VideoDefaultConfig
+					config = codecprocessor.MPEG4VideoDefaultConfig
 				}
 
 				codec := &mp4.CodecMPEG4Video{
@@ -518,7 +512,7 @@ func (f *formatFMP4) initialize() bool {
 
 			case *rtspformat.MPEG1Video:
 				codec := &mp4.CodecMPEG1Video{
-					Config: formatprocessor.MPEG1VideoDefaultConfig,
+					Config: codecprocessor.MPEG1VideoDefaultConfig,
 				}
 				track := addTrack(forma, codec)
 

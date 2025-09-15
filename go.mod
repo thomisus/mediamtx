@@ -1,17 +1,18 @@
 module github.com/bluenviron/mediamtx
 
-go 1.24.0
+go 1.25.0
 
 require (
-	code.cloudfoundry.org/bytefmt v0.49.0
+	code.cloudfoundry.org/bytefmt v0.50.0
 	github.com/MicahParks/jwkset v0.9.6
 	github.com/MicahParks/keyfunc/v3 v3.6.1
 	github.com/abema/go-mp4 v1.4.1
 	github.com/alecthomas/kong v1.12.1
 	github.com/asticode/go-astits v1.13.0
 	github.com/bluenviron/gohlslib/v2 v2.2.2
+	github.com/bluenviron/gortmplib v0.0.0-20250913092258-91acda098766
 	github.com/bluenviron/gortsplib/v4 v4.16.2
-	github.com/bluenviron/mediacommon/v2 v2.4.1
+	github.com/bluenviron/mediacommon/v2 v2.4.2-0.20250909112826-017d0bbe41db
 	github.com/datarhei/gosrt v0.9.0
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/gin-contrib/pprof v1.5.3
@@ -32,9 +33,9 @@ require (
 	github.com/pion/sdp/v3 v3.0.16
 	github.com/pion/webrtc/v4 v4.1.4
 	github.com/stretchr/testify v1.11.1
-	golang.org/x/crypto v0.41.0
-	golang.org/x/sys v0.35.0
-	golang.org/x/term v0.34.0
+	golang.org/x/crypto v0.42.0
+	golang.org/x/sys v0.36.0
+	golang.org/x/term v0.35.0
 	gopkg.in/yaml.v2 v2.4.0
 )
 
@@ -88,7 +89,7 @@ require (
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	golang.org/x/arch v0.16.0 // indirect
 	golang.org/x/net v0.43.0 // indirect
-	golang.org/x/text v0.28.0 // indirect
+	golang.org/x/text v0.29.0 // indirect
 	golang.org/x/time v0.9.0 // indirect
 	google.golang.org/protobuf v1.36.6 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect

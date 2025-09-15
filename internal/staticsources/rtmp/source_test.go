@@ -10,9 +10,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/bluenviron/gortmplib"
+	"github.com/bluenviron/gortsplib/v4/pkg/format"
 	"github.com/bluenviron/mediamtx/internal/conf"
 	"github.com/bluenviron/mediamtx/internal/defs"
-	"github.com/bluenviron/mediamtx/internal/protocols/rtmp"
 	"github.com/bluenviron/mediamtx/internal/test"
 )
 
@@ -100,7 +101,7 @@ func TestSource(t *testing.T) {
 					require.NoError(t, err)
 					defer nconn.Close()
 
-					conn := &rtmp.ServerConn{
+					conn := &gortmplib.ServerConn{
 						RW: nconn,
 					}
 					err = conn.Initialize()
@@ -116,18 +117,17 @@ func TestSource(t *testing.T) {
 					err = conn.Accept()
 					require.NoError(t, err)
 
-					w := &rtmp.Writer{
-						Conn:       conn,
-						VideoTrack: test.FormatH264,
-						AudioTrack: test.FormatMPEG4Audio,
+					w := &gortmplib.Writer{
+						Conn:   conn,
+						Tracks: []format.Format{test.FormatH264, test.FormatMPEG4Audio},
 					}
 					err = w.Initialize()
 					require.NoError(t, err)
 
-					err = w.WriteH264(2*time.Second, 2*time.Second, [][]byte{{5, 2, 3, 4}})
+					err = w.WriteH264(test.FormatH264, 2*time.Second, 2*time.Second, [][]byte{{5, 2, 3, 4}})
 					require.NoError(t, err)
 
-					err = w.WriteH264(3*time.Second, 3*time.Second, [][]byte{{5, 2, 3, 4}})
+					err = w.WriteH264(test.FormatH264, 3*time.Second, 3*time.Second, [][]byte{{5, 2, 3, 4}})
 					require.NoError(t, err)
 
 					break

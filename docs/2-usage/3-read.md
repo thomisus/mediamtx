@@ -9,7 +9,7 @@ Live streams can be read from the server with the following protocols and codecs
 | [SRT](#srt)       |                                            | H265, H264, MPEG-4 Video (H263, Xvid), MPEG-1/2 Video                                                     | Opus, MPEG-4 Audio (AAC), MPEG-1/2 Audio (MP3), AC-3                                                                   |
 | [WebRTC](#webrtc) | WHEP                                       | AV1, VP9, VP8, H265, H264                                                                                 | Opus, G722, G711 (PCMA, PCMU)                                                                                          |
 | [RTSP](#rtsp)     | UDP, UDP-Multicast, TCP, RTSPS             | AV1, VP9, VP8, H265, H264, MPEG-4 Video (H263, Xvid), MPEG-1/2 Video, M-JPEG and any RTP-compatible codec | Opus, MPEG-4 Audio (AAC), MPEG-1/2 Audio (MP3), AC-3, G726, G722, G711 (PCMA, PCMU), LPCM and any RTP-compatible codec |
-| [RTMP](#rtmp)     | RTMP, RTMPS, Enhanced RTMP                 | H264                                                                                                      | MPEG-4 Audio (AAC), MPEG-1/2 Audio (MP3)                                                                               |
+| [RTMP](#rtmp)     | RTMP, RTMPS, Enhanced RTMP                 | AV1, VP9, H265, H264                                                                                      | Opus, MPEG-4 Audio (AAC), MPEG-1/2 Audio (MP3), AC-3, G711 (PCMA, PCMU), LPCM                                          |
 | [HLS](#hls)       | Low-Latency HLS, MP4-based HLS, legacy HLS | AV1, VP9, H265, H264                                                                                      | Opus, MPEG-4 Audio (AAC)                                                                                               |
 
 We provide instructions for reading with the following software:
@@ -59,7 +59,7 @@ Known clients that can read with WebRTC and WHEP are [FFmpeg](#ffmpeg), [GStream
 
 ### RTSP
 
-RTSP is a protocol that allows to publish and read streams. It supports different underlying transport protocols and allows to encrypt streams in transit (see [RTSP-specific features](rtsp-specific-features)). In order to read a stream with the RTSP protocol, use this URL:
+RTSP is a protocol that allows to publish and read streams. It supports different underlying transport protocols and encryption (see [RTSP-specific features](rtsp-specific-features)). In order to read a stream with the RTSP protocol, use this URL:
 
 ```
 rtsp://localhost:8554/mystream
@@ -180,6 +180,18 @@ The RTSP protocol supports several underlying transport protocols, each with its
 
 ```sh
 ffmpeg -rtsp_transport tcp -i rtsp://localhost:8554/mystream -c copy output.mp4
+```
+
+FFmpeg can also read a stream with RTMP:
+
+```sh
+ffmpeg -i rtmp://localhost/mystream -c copy output.mp4
+```
+
+In order to read AV1, VP9, H265, Opus, AC3 tracks and in order to read multiple video or audio tracks, the `-rtmp_enhanced_codecs` flag must be present:
+
+```sh
+ffmpeg -rtmp_enhanced_codecs ac-3,av01,avc1,ec-3,fLaC,hvc1,.mp3,mp4a,Opus,vp09 -i rtmp://localhost/mystream -c copy output.mp4
 ```
 
 ### GStreamer
@@ -423,7 +435,7 @@ This web page can be embedded into another web page by using an iframe:
 <iframe src="http://mediamtx-ip:8889/mystream" scrolling="no"></iframe>
 ```
 
-For more advanced setups, you can create and serve a custom web page by starting from the [source code of the WebRTC read page](internal/servers/webrtc/read_index.html). In particular, there's a ready-to-use, standalone JavaScript class for reading streams with WebRTC, available in [reader.js](internal/servers/webrtc/reader.js).
+For more advanced setups, you can create and serve a custom web page by starting from the [source code of the WebRTC read page](https://github.com/bluenviron/mediamtx/blob/{version_tag}/internal/servers/webrtc/read_index.html). In particular, there's a ready-to-use, standalone JavaScript class for reading streams with WebRTC, available in [reader.js](https://github.com/bluenviron/mediamtx/blob/{version_tag}/internal/servers/webrtc/reader.js).
 
 Web browsers can also read a stream with the [HLS protocol](#hls). Latency is higher but there are less problems related to connectivity between server and clients, furthermore the server load can be balanced by using a common HTTP CDN (like Cloudflare or CloudFront), and this allows to handle an unlimited amount of readers. Visit the web page:
 
@@ -437,4 +449,4 @@ This web page can be embedded into another web page by using an iframe:
 <iframe src="http://mediamtx-ip:8888/mystream" scrolling="no"></iframe>
 ```
 
-For more advanced setups, you can create and serve a custom web page by starting from the [source code of the HLS read page](internal/servers/hls/index.html).
+For more advanced setups, you can create and serve a custom web page by starting from the [source code of the HLS read page](https://github.com/bluenviron/mediamtx/blob/{version_tag}/internal/servers/hls/index.html).
