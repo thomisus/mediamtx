@@ -1,6 +1,6 @@
 # RTSP-specific features
 
-RTSP is a protocol that can be used for publishing and reading streams. Features in these page are shared among both tasks. Regarding specific tasks, see [Publish](publish) and [Read](read).
+RTSP is a protocol that can be used for publishing and reading streams. Regarding specific tasks, see [Publish](publish#rtsp-clients) and [Read](read#rtsp). Features in these page are shared among both tasks.
 
 ## Transport protocols
 
@@ -10,7 +10,32 @@ The RTSP protocol supports several underlying transport protocols, that are chos
 - UDP-multicast: allows to save bandwidth when clients are all in the same LAN, by sending packets once to a fixed multicast IP.
 - TCP: the most versatile.
 
-The default transport protocol is UDP. To change the transport protocol, you have to tune the configuration of your client of choice.
+To change the transport protocol, you have to tune the configuration of the client you are using to publish or read streams. In most clients, the default transport protocol is UDP.
+
+For instance, FFmpeg allows to change the transport protocol with the `-rtsp_transport` flag:
+
+```sh
+ffmpeg -rtsp_transport tcp -i rtsp://localhost:8554/mystream -c copy output.mp4
+```
+
+GStreamer allows to change the transport protocol with the `protocols` property of `rtspsrc` and `rtspclientsink`:
+
+```sh
+gst-launch-1.0 filesrc location=file.mp4 ! qtdemux name=d \
+d.video_0 ! rtspclientsink location=rtsp://localhost:8554/mystream protocols=tcp
+```
+
+VLC allows to use the TCP transport protocol, use the `--rtsp_tcp` flag:
+
+```sh
+vlc --network-caching=50 --rtsp-tcp rtsp://localhost:8554/mystream
+```
+
+VLC allows to use the UDP-multicast transport protocol by appending `?vlcmulticast` to the URL:
+
+```sh
+vlc --network-caching=50 rtsp://localhost:8554/mystream?vlcmulticast
+```
 
 ## Encryption
 
@@ -35,7 +60,40 @@ Streams can be published and read with the `rtsps` scheme and the `8322` port:
 rtsps://localhost:8322/mystream
 ```
 
-## Corrupted frames
+Some clients require additional flags for encryption to work properly.
+
+When reading with GStreamer, set set `tls-validation-flags` to `0`:
+
+```sh
+gst-launch-1.0 rtspsrc tls-validation-flags=0 location=rtsps://ip:8322/...
+```
+
+When publishing with GStreamer, set `tls-validation-flags` to `0` and `profiles` to `GST_RTSP_PROFILE_SAVP`:
+
+```sh
+gst-launch-1.0 filesrc location=file.mp4 ! qtdemux name=d \
+d.video_0 ! rtspclientsink location=rtsp://localhost:8554/mystream tls-validation-flags=0 profiles=GST_RTSP_PROFILE_SAVP
+```
+
+## Tunneling
+
+In environments where HTTP is the only protocol available for exposing services (for instance, when there are mandatory API gateways or strict firewalls), the RTSP protocol can be tunneled inside HTTP. There are two standardized HTTP tunneling variants:
+
+- RTSP over WebSocket: more efficient, requires WebSocket support from the gateway / firewall
+- RTSP over HTTP: older variant, should work even in extreme cases
+
+_MediaMTX_ is automatically able to handle incoming HTTP tunneled connections, without any configuration required.
+
+In order to read a RTSP from an external server using HTTP tunneling, you can use the `rtsp+http` scheme:
+
+```yml
+paths:
+  source: rtsp+http://standard-rtsp-url
+```
+
+There are also the `rtsp+https`, `rtsp+ws`, `rtsp+wss` schemes to handle any variant.
+
+## Decreasing corrupted frames
 
 In some scenarios, when publishing or reading from the server with RTSP, frames can get corrupted. This can be caused by several reasons:
 

@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/alecthomas/kong"
-	"github.com/bluenviron/gortsplib/v4"
+	"github.com/bluenviron/gortsplib/v5"
 	"github.com/gin-gonic/gin"
 
 	"github.com/bluenviron/mediamtx/internal/api"
@@ -44,6 +44,9 @@ var version []byte
 var defaultConfPaths = []string{
 	"rtsp-simple-server.yml",
 	"mediamtx.yml",
+}
+
+var defaultConfPathsNotWin = []string{
 	"/usr/local/etc/mediamtx.yml",
 	"/usr/etc/mediamtx.yml",
 	"/etc/mediamtx/mediamtx.yml",
@@ -143,7 +146,12 @@ func New(args []string) (*Core, bool) {
 
 	tempLogger, _ := logger.New(logger.Warn, []logger.Destination{logger.DestinationStdout}, "", "")
 
-	p.conf, p.confPath, err = conf.Load(cli.Confpath, defaultConfPaths, tempLogger)
+	confPaths := append([]string(nil), defaultConfPaths...)
+	if runtime.GOOS != "windows" {
+		confPaths = append(confPaths, defaultConfPathsNotWin...)
+	}
+
+	p.conf, p.confPath, err = conf.Load(cli.Confpath, confPaths, tempLogger)
 	if err != nil {
 		fmt.Printf("ERR: %s\n", err)
 		return nil, false
@@ -389,8 +397,8 @@ func (p *Core) createResources(initial bool) error {
 		(p.conf.RTSPEncryption == conf.EncryptionNo ||
 			p.conf.RTSPEncryption == conf.EncryptionOptional) &&
 		p.rtspServer == nil {
-		_, useUDP := p.conf.RTSPTransports[gortsplib.TransportUDP]
-		_, useMulticast := p.conf.RTSPTransports[gortsplib.TransportUDPMulticast]
+		_, useUDP := p.conf.RTSPTransports[gortsplib.ProtocolUDP]
+		_, useMulticast := p.conf.RTSPTransports[gortsplib.ProtocolUDPMulticast]
 
 		i := &rtsp.Server{
 			Address:             p.conf.RTSPAddress,
@@ -430,8 +438,8 @@ func (p *Core) createResources(initial bool) error {
 		(p.conf.RTSPEncryption == conf.EncryptionStrict ||
 			p.conf.RTSPEncryption == conf.EncryptionOptional) &&
 		p.rtspsServer == nil {
-		_, useUDP := p.conf.RTSPTransports[gortsplib.TransportUDP]
-		_, useMulticast := p.conf.RTSPTransports[gortsplib.TransportUDPMulticast]
+		_, useUDP := p.conf.RTSPTransports[gortsplib.ProtocolUDP]
+		_, useMulticast := p.conf.RTSPTransports[gortsplib.ProtocolUDPMulticast]
 
 		i := &rtsp.Server{
 			Address:             p.conf.RTSPSAddress,

@@ -1,18 +1,21 @@
 package rtsp
 
 import (
+	"fmt"
+	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/bluenviron/gortsplib/v4"
-	rtspauth "github.com/bluenviron/gortsplib/v4/pkg/auth"
-	"github.com/bluenviron/gortsplib/v4/pkg/base"
-	"github.com/bluenviron/gortsplib/v4/pkg/description"
-	"github.com/bluenviron/gortsplib/v4/pkg/format"
+	"github.com/bluenviron/gortsplib/v5"
+	rtspauth "github.com/bluenviron/gortsplib/v5/pkg/auth"
+	"github.com/bluenviron/gortsplib/v5/pkg/base"
+	"github.com/bluenviron/gortsplib/v5/pkg/description"
+	"github.com/bluenviron/gortsplib/v5/pkg/format"
 	"github.com/bluenviron/mediamtx/internal/auth"
 	"github.com/bluenviron/mediamtx/internal/conf"
 	"github.com/bluenviron/mediamtx/internal/defs"
 	"github.com/bluenviron/mediamtx/internal/externalcmd"
+	"github.com/bluenviron/mediamtx/internal/logger"
 	"github.com/bluenviron/mediamtx/internal/stream"
 	"github.com/bluenviron/mediamtx/internal/test"
 	"github.com/bluenviron/mediamtx/internal/unit"
@@ -56,7 +59,7 @@ func TestServerPublish(t *testing.T) {
 						require.Nil(t, req.AccessRequest.CustomVerifyFunc)
 
 						if req.AccessRequest.Credentials.User == "" && req.AccessRequest.Credentials.Pass == "" {
-							return nil, auth.Error{Message: "", AskCredentials: true}
+							return nil, &auth.Error{AskCredentials: true}
 						}
 
 						require.Equal(t, "myuser", req.AccessRequest.Credentials.User)
@@ -66,7 +69,7 @@ func TestServerPublish(t *testing.T) {
 						if n == 0 {
 							require.False(t, ok)
 							n++
-							return nil, auth.Error{Message: "", AskCredentials: true}
+							return nil, &auth.Error{AskCredentials: true}
 						}
 						require.True(t, ok)
 					}
@@ -110,7 +113,7 @@ func TestServerPublish(t *testing.T) {
 				ReadTimeout:    conf.Duration(10 * time.Second),
 				WriteTimeout:   conf.Duration(10 * time.Second),
 				WriteQueueSize: 512,
-				Transports:     conf.RTSPTransports{gortsplib.TransportTCP: {}},
+				Transports:     conf.RTSPTransports{gortsplib.ProtocolTCP: {}},
 				PathManager:    pathManager,
 				Parent:         test.NilLogger,
 			}
@@ -195,7 +198,7 @@ func TestServerRead(t *testing.T) {
 						require.Nil(t, req.AccessRequest.CustomVerifyFunc)
 
 						if req.AccessRequest.Credentials.User == "" && req.AccessRequest.Credentials.Pass == "" {
-							return defs.PathDescribeRes{Err: auth.Error{Message: "", AskCredentials: true}}
+							return defs.PathDescribeRes{Err: &auth.Error{AskCredentials: true}}
 						}
 
 						require.Equal(t, "myuser", req.AccessRequest.Credentials.User)
@@ -205,7 +208,7 @@ func TestServerRead(t *testing.T) {
 						if n == 0 {
 							require.False(t, ok)
 							n++
-							return defs.PathDescribeRes{Err: auth.Error{Message: "", AskCredentials: true}}
+							return defs.PathDescribeRes{Err: &auth.Error{AskCredentials: true}}
 						}
 						require.True(t, ok)
 					}
@@ -249,7 +252,7 @@ func TestServerRead(t *testing.T) {
 				ReadTimeout:    conf.Duration(10 * time.Second),
 				WriteTimeout:   conf.Duration(10 * time.Second),
 				WriteQueueSize: 512,
-				Transports:     conf.RTSPTransports{gortsplib.TransportTCP: {}},
+				Transports:     conf.RTSPTransports{gortsplib.ProtocolTCP: {}},
 				PathManager:    pathManager,
 				Parent:         test.NilLogger,
 			}
@@ -265,7 +268,7 @@ func TestServerRead(t *testing.T) {
 				Host:   u.Host,
 			}
 
-			err = reader.Start2()
+			err = reader.Start()
 			require.NoError(t, err)
 			defer reader.Close()
 
@@ -345,7 +348,7 @@ func TestServerRedirect(t *testing.T) {
 					}
 
 					if req.AccessRequest.Credentials.User == "" && req.AccessRequest.Credentials.Pass == "" {
-						return defs.PathDescribeRes{Err: auth.Error{Message: "", AskCredentials: true}}
+						return defs.PathDescribeRes{Err: &auth.Error{AskCredentials: true}}
 					}
 
 					require.Equal(t, "path2", req.AccessRequest.Name)
@@ -366,7 +369,7 @@ func TestServerRedirect(t *testing.T) {
 				ReadTimeout:    conf.Duration(10 * time.Second),
 				WriteTimeout:   conf.Duration(10 * time.Second),
 				WriteQueueSize: 512,
-				Transports:     conf.RTSPTransports{gortsplib.TransportTCP: {}},
+				Transports:     conf.RTSPTransports{gortsplib.ProtocolTCP: {}},
 				PathManager:    pathManager,
 				Parent:         test.NilLogger,
 			}
@@ -382,7 +385,7 @@ func TestServerRedirect(t *testing.T) {
 				Host:   u.Host,
 			}
 
-			err = reader.Start2()
+			err = reader.Start()
 			require.NoError(t, err)
 			defer reader.Close()
 
@@ -392,4 +395,55 @@ func TestServerRedirect(t *testing.T) {
 			require.Equal(t, desc.Medias[0].Formats, desc2.Medias[0].Formats)
 		})
 	}
+}
+
+func TestAuthError(t *testing.T) {
+	pathManager := &test.PathManager{
+		DescribeImpl: func(req defs.PathDescribeReq) defs.PathDescribeRes {
+			if req.AccessRequest.Credentials.User == "" && req.AccessRequest.Credentials.Pass == "" {
+				return defs.PathDescribeRes{Err: &auth.Error{AskCredentials: true}}
+			}
+
+			return defs.PathDescribeRes{Err: &auth.Error{Wrapped: fmt.Errorf("auth error")}}
+		},
+	}
+
+	n := new(int64)
+	done := make(chan struct{})
+
+	s := &Server{
+		Address:        "127.0.0.1:8557",
+		ReadTimeout:    conf.Duration(10 * time.Second),
+		WriteTimeout:   conf.Duration(10 * time.Second),
+		WriteQueueSize: 512,
+		PathManager:    pathManager,
+		Parent: test.Logger(func(l logger.Level, s string, i ...interface{}) {
+			if l == logger.Info {
+				if atomic.AddInt64(n, 1) == 3 {
+					require.Regexp(t, "authentication failed: auth error$", fmt.Sprintf(s, i...))
+					close(done)
+				}
+			}
+		}),
+	}
+	err := s.Initialize()
+	require.NoError(t, err)
+	defer s.Close()
+
+	u, err := base.ParseURL("rtsp://myuser:mypass@127.0.0.1:8557/teststream?param=value")
+	require.NoError(t, err)
+
+	reader := gortsplib.Client{
+		Scheme: u.Scheme,
+		Host:   u.Host,
+	}
+
+	err = reader.Start()
+	require.NoError(t, err)
+	defer reader.Close()
+
+	_, _, err = reader.Describe(u)
+	require.EqualError(t, err, "bad status code: 401 (Unauthorized)")
+
+	<-done
 }

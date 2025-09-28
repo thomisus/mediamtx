@@ -15,7 +15,7 @@ import (
 )
 
 type serverAuthManager interface {
-	Authenticate(req *auth.Request) error
+	Authenticate(req *auth.Request) *auth.Error
 }
 
 // Server is the playback server.
@@ -123,16 +123,16 @@ func (s *Server) doAuth(ctx *gin.Context, pathName string) bool {
 
 	err := s.AuthManager.Authenticate(req)
 	if err != nil {
-		if err.(auth.Error).AskCredentials { //nolint:errorlint
+		if err.AskCredentials {
 			ctx.Header("WWW-Authenticate", `Basic realm="mediamtx"`)
 			ctx.Writer.WriteHeader(http.StatusUnauthorized)
 			return false
 		}
 
 		s.Log(logger.Info, "connection %v failed to authenticate: %v",
-			httpp.RemoteAddr(ctx), err.(auth.Error).Message) //nolint:errorlint
+			httpp.RemoteAddr(ctx), err.Wrapped)
 
-		// wait some seconds to mitigate brute force attacks
+		// wait some seconds to delay brute force attacks
 		<-time.After(auth.PauseAfterError)
 
 		ctx.Writer.WriteHeader(http.StatusUnauthorized)

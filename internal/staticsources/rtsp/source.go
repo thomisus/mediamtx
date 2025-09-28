@@ -2,11 +2,13 @@
 package rtsp
 
 import (
+	"net/url"
+	"regexp"
 	"time"
 
-	"github.com/bluenviron/gortsplib/v4"
-	"github.com/bluenviron/gortsplib/v4/pkg/base"
-	"github.com/bluenviron/gortsplib/v4/pkg/headers"
+	"github.com/bluenviron/gortsplib/v5"
+	"github.com/bluenviron/gortsplib/v5/pkg/base"
+	"github.com/bluenviron/gortsplib/v5/pkg/headers"
 
 	"github.com/bluenviron/mediamtx/internal/conf"
 	"github.com/bluenviron/mediamtx/internal/counterdumper"
@@ -116,15 +118,38 @@ func (s *Source) Run(params defs.StaticSourceRunParams) error {
 	decodeErrors.Start()
 	defer decodeErrors.Stop()
 
-	u, err := base.ParseURL(params.ResolvedSource)
+	u0, err := url.Parse(params.ResolvedSource)
+	if err != nil {
+		return err
+	}
+
+	var scheme string
+	if u0.Scheme == "rtsp" || u0.Scheme == "rtsp+http" || u0.Scheme == "rtsp+ws" {
+		scheme = "rtsp"
+	} else {
+		scheme = "rtsps"
+	}
+
+	var tunnel gortsplib.Tunnel
+	switch u0.Scheme {
+	case "rtsp+http", "rtsps+http":
+		tunnel = gortsplib.TunnelHTTP
+	case "rtsp+ws", "rtsps+ws":
+		tunnel = gortsplib.TunnelWebSocket
+	default:
+		tunnel = gortsplib.TunnelNone
+	}
+
+	u, err := base.ParseURL(regexp.MustCompile("^.*?://").ReplaceAllString(params.ResolvedSource, "rtsp://"))
 	if err != nil {
 		return err
 	}
 
 	c := &gortsplib.Client{
-		Scheme:            u.Scheme,
+		Scheme:            scheme,
 		Host:              u.Host,
-		Transport:         params.Conf.RTSPTransport.Transport,
+		Tunnel:            tunnel,
+		Protocol:          params.Conf.RTSPTransport.Protocol,
 		TLSConfig:         tls.MakeConfig(u.Hostname(), params.Conf.SourceFingerprint),
 		ReadTimeout:       time.Duration(s.ReadTimeout),
 		WriteTimeout:      time.Duration(s.WriteTimeout),
@@ -148,7 +173,7 @@ func (s *Source) Run(params defs.StaticSourceRunParams) error {
 		},
 	}
 
-	err = c.Start2()
+	err = c.Start()
 	if err != nil {
 		return err
 	}

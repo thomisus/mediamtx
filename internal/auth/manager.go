@@ -27,33 +27,6 @@ const (
 	jwksRefreshPeriod = 60 * 60 * time.Second
 )
 
-func isHTTPRequest(r *Request) bool {
-	switch r.Action {
-	case conf.AuthActionPlayback, conf.AuthActionAPI,
-		conf.AuthActionMetrics, conf.AuthActionPprof:
-		return true
-	}
-
-	switch r.Protocol {
-	case ProtocolHLS, ProtocolWebRTC:
-		return true
-	}
-
-	return false
-}
-
-// Error is a authentication error.
-type Error struct {
-	Wrapped        error
-	Message        string
-	AskCredentials bool
-}
-
-// Error implements the error interface.
-func (e Error) Error() string {
-	return "authentication failed: " + e.Wrapped.Error()
-}
-
 func matchesPermission(perms []conf.AuthInternalUserPermission, req *Request) bool {
 	for _, perm := range perms {
 		if perm.Action == req.Action {
@@ -108,7 +81,7 @@ func (m *Manager) ReloadInternalUsers(u []conf.AuthInternalUser) {
 }
 
 // Authenticate authenticates a request.
-func (m *Manager) Authenticate(req *Request) error {
+func (m *Manager) Authenticate(req *Request) *Error {
 	var err error
 
 	switch m.Method {
@@ -123,9 +96,9 @@ func (m *Manager) Authenticate(req *Request) error {
 	}
 
 	if err != nil {
-		return Error{
+		return &Error{
 			Wrapped:        err,
-			AskCredentials: m.Method != conf.AuthMethodJWT && req.Credentials.User == "" && req.Credentials.Pass == "",
+			AskCredentials: (req.Credentials.User == "" && req.Credentials.Pass == "" && req.Credentials.Token == ""),
 		}
 	}
 
@@ -235,7 +208,7 @@ func (m *Manager) authenticateJWT(req *Request) error {
 	case req.Credentials.Pass != "":
 		encodedJWT = req.Credentials.Pass
 
-	case (!isHTTPRequest(req) || m.JWTInHTTPQuery):
+	case m.JWTInHTTPQuery:
 		var v url.Values
 		v, err = url.ParseQuery(req.Query)
 		if err != nil {

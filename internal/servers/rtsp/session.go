@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"net"
 	"slices"
-	"sync"
 	"time"
 
-	"github.com/bluenviron/gortsplib/v4"
-	rtspauth "github.com/bluenviron/gortsplib/v4/pkg/auth"
-	"github.com/bluenviron/gortsplib/v4/pkg/base"
+	"github.com/bluenviron/gortsplib/v5"
+	rtspauth "github.com/bluenviron/gortsplib/v5/pkg/auth"
+	"github.com/bluenviron/gortsplib/v5/pkg/base"
+	"github.com/bluenviron/gortsplib/v5/pkg/headers"
 	"github.com/google/uuid"
 
 	"github.com/bluenviron/mediamtx/internal/auth"
@@ -24,6 +24,16 @@ import (
 	"github.com/bluenviron/mediamtx/internal/protocols/rtsp"
 	"github.com/bluenviron/mediamtx/internal/stream"
 )
+
+func profileLabel(p headers.TransportProfile) string {
+	switch p {
+	case headers.TransportProfileSAVP:
+		return "SAVP"
+	case headers.TransportProfileAVP:
+		return "AVP"
+	}
+	return "unknown"
+}
 
 type session struct {
 	isTLS           bool
@@ -41,11 +51,6 @@ type session struct {
 	path            defs.Path
 	stream          *stream.Stream
 	onUnreadHook    func()
-	mutex           sync.Mutex
-	state           defs.APIRTSPSessionState
-	transport       *gortsplib.Transport
-	pathName        string
-	query           string
 	packetsLost     *counterdumper.CounterDumper
 	decodeErrors    *counterdumper.CounterDumper
 	discardedFrames *counterdumper.CounterDumper
@@ -54,7 +59,6 @@ type session struct {
 func (s *session) initialize() {
 	s.uuid = uuid.New()
 	s.created = time.Now()
-	s.state = defs.APIRTSPSessionStateIdle
 
 	s.packetsLost = &counterdumper.CounterDumper{
 		OnReport: func(val uint64) {
@@ -173,9 +177,9 @@ func (s *session) onAnnounce(c *conn, ctx *gortsplib.ServerHandlerOnAnnounceCtx)
 		},
 	})
 	if err != nil {
-		var terr auth.Error
+		var terr *auth.Error
 		if errors.As(err, &terr) {
-			return c.handleAuthError(ctx.Request)
+			return c.handleAuthError(terr)
 		}
 
 		return &base.Response{
@@ -184,11 +188,6 @@ func (s *session) onAnnounce(c *conn, ctx *gortsplib.ServerHandlerOnAnnounceCtx)
 	}
 
 	s.pathConf = pathConf
-
-	s.mutex.Lock()
-	s.pathName = ctx.Path
-	s.query = ctx.Query
-	s.mutex.Unlock()
 
 	return &base.Response{
 		StatusCode: base.StatusOK,
@@ -207,10 +206,10 @@ func (s *session) onSetup(c *conn, ctx *gortsplib.ServerHandlerOnSetupCtx,
 
 	// in case the client is setupping a stream with UDP or UDP-multicast, and these
 	// transport protocols are disabled, gortsplib already blocks the request.
-	// we have only to handle the case in which the transport protocol is TCP
+	// we only have to handle the case in which the transport protocol is TCP
 	// and it is disabled.
-	if ctx.Transport == gortsplib.TransportTCP {
-		if _, ok := s.transports[gortsplib.TransportTCP]; !ok {
+	if ctx.Transport.Protocol == gortsplib.ProtocolTCP {
+		if _, ok := s.transports[gortsplib.ProtocolTCP]; !ok {
 			return &base.Response{
 				StatusCode: base.StatusUnsupportedTransport,
 			}, nil, nil
@@ -241,9 +240,9 @@ func (s *session) onSetup(c *conn, ctx *gortsplib.ServerHandlerOnSetupCtx,
 			},
 		})
 		if err != nil {
-			var terr auth.Error
+			var terr *auth.Error
 			if errors.As(err, &terr) {
-				res, err2 := c.handleAuthError(ctx.Request)
+				res, err2 := c.handleAuthError(terr)
 				return res, nil, err2
 			}
 
@@ -261,11 +260,6 @@ func (s *session) onSetup(c *conn, ctx *gortsplib.ServerHandlerOnSetupCtx,
 
 		s.path = path
 		s.stream = stream
-
-		s.mutex.Lock()
-		s.pathName = ctx.Path
-		s.query = ctx.Query
-		s.mutex.Unlock()
 
 		var rstream *gortsplib.ServerStream
 		if !s.isTLS {
@@ -292,8 +286,8 @@ func (s *session) onPlay(_ *gortsplib.ServerHandlerOnPlayCtx) (*base.Response, e
 	if s.rsession.State() == gortsplib.ServerSessionStatePrePlay {
 		s.Log(logger.Info, "is reading from path '%s', with %s, %s",
 			s.path.Name(),
-			s.rsession.SetuppedTransport(),
-			defs.MediasInfo(s.rsession.SetuppedMedias()))
+			s.rsession.Transport().Protocol,
+			defs.MediasInfo(s.rsession.Medias()))
 
 		s.onUnreadHook = hooks.OnRead(hooks.OnReadParams{
 			Logger:          s,
@@ -301,13 +295,8 @@ func (s *session) onPlay(_ *gortsplib.ServerHandlerOnPlayCtx) (*base.Response, e
 			Conf:            s.path.SafeConf(),
 			ExternalCmdEnv:  s.path.ExternalCmdEnv(),
 			Reader:          s.APIReaderDescribe(),
-			Query:           s.rsession.SetuppedQuery(),
+			Query:           s.rsession.Query(),
 		})
-
-		s.mutex.Lock()
-		s.state = defs.APIRTSPSessionStateRead
-		s.transport = s.rsession.SetuppedTransport()
-		s.mutex.Unlock()
 	}
 
 	return &base.Response{
@@ -324,8 +313,8 @@ func (s *session) onRecord(_ *gortsplib.ServerHandlerOnRecordCtx) (*base.Respons
 		GenerateRTPPackets: false,
 		ConfToCompare:      s.pathConf,
 		AccessRequest: defs.PathAccessRequest{
-			Name:     s.pathName,
-			Query:    s.query,
+			Name:     s.rsession.Path()[1:],
+			Query:    s.rsession.Query(),
 			Publish:  true,
 			SkipAuth: true,
 		},
@@ -346,11 +335,6 @@ func (s *session) onRecord(_ *gortsplib.ServerHandlerOnRecordCtx) (*base.Respons
 		stream,
 		s)
 
-	s.mutex.Lock()
-	s.state = defs.APIRTSPSessionStatePublish
-	s.transport = s.rsession.SetuppedTransport()
-	s.mutex.Unlock()
-
 	return &base.Response{
 		StatusCode: base.StatusOK,
 	}, nil
@@ -362,16 +346,8 @@ func (s *session) onPause(_ *gortsplib.ServerHandlerOnPauseCtx) (*base.Response,
 	case gortsplib.ServerSessionStatePlay:
 		s.onUnreadHook()
 
-		s.mutex.Lock()
-		s.state = defs.APIRTSPSessionStateIdle
-		s.mutex.Unlock()
-
 	case gortsplib.ServerSessionStateRecord:
 		s.path.RemovePublisher(defs.PathRemovePublisherReq{Author: s})
-
-		s.mutex.Lock()
-		s.state = defs.APIRTSPSessionStateIdle
-		s.mutex.Unlock()
 	}
 
 	return &base.Response{
@@ -414,23 +390,47 @@ func (s *session) onStreamWriteError(_ *gortsplib.ServerHandlerOnStreamWriteErro
 }
 
 func (s *session) apiItem() *defs.APIRTSPSession {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
 	stats := s.rsession.Stats()
 
 	return &defs.APIRTSPSession{
 		ID:         s.uuid,
 		Created:    s.created,
 		RemoteAddr: s.remoteAddr().String(),
-		State:      s.state,
-		Path:       s.pathName,
-		Query:      s.query,
+		State: func() defs.APIRTSPSessionState {
+			state := s.rsession.State()
+			switch state {
+			case gortsplib.ServerSessionStatePlay:
+				return defs.APIRTSPSessionStateRead
+
+			case gortsplib.ServerSessionStateRecord:
+				return defs.APIRTSPSessionStatePublish
+
+			default:
+				return defs.APIRTSPSessionStateIdle
+			}
+		}(),
+		Path: func() string {
+			pa := s.rsession.Path()
+			if len(pa) >= 1 {
+				return pa[1:]
+			}
+			return ""
+		}(),
+		Query: s.rsession.Query(),
 		Transport: func() *string {
-			if s.transport == nil {
+			transport := s.rsession.Transport()
+			if transport == nil {
 				return nil
 			}
-			v := s.transport.String()
+			v := transport.Protocol.String()
+			return &v
+		}(),
+		Profile: func() *string {
+			transport := s.rsession.Transport()
+			if transport == nil {
+				return nil
+			}
+			v := profileLabel(transport.Profile)
 			return &v
 		}(),
 		BytesReceived:       stats.BytesReceived,

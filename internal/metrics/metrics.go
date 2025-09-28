@@ -61,7 +61,7 @@ func metricFloat(key string, tags string, value float64) string {
 }
 
 type metricsAuthManager interface {
-	Authenticate(req *auth.Request) error
+	Authenticate(req *auth.Request) *auth.Error
 }
 
 type metricsParent interface {
@@ -156,13 +156,15 @@ func (m *Metrics) middlewareAuth(ctx *gin.Context) {
 
 	err := m.AuthManager.Authenticate(req)
 	if err != nil {
-		if err.(auth.Error).AskCredentials { //nolint:errorlint
+		if err.AskCredentials {
 			ctx.Header("WWW-Authenticate", `Basic realm="mediamtx"`)
 			ctx.AbortWithStatus(http.StatusUnauthorized)
 			return
 		}
 
-		// wait some seconds to mitigate brute force attacks
+		m.Log(logger.Info, "connection %v failed to authenticate: %v", httpp.RemoteAddr(ctx), err.Wrapped)
+
+		// wait some seconds to delay brute force attacks
 		<-time.After(auth.PauseAfterError)
 
 		ctx.AbortWithStatus(http.StatusUnauthorized)
