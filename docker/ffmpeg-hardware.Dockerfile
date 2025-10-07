@@ -7,7 +7,7 @@ ADD binaries/mediamtx_*_linux_armv7.tar.gz /linux/arm/v7
 ADD binaries/mediamtx_*_linux_arm64.tar.gz /linux/arm64
 
 #################################################################
-FROM alpine:3.20
+FROM alpine:latest
 
 RUN apk add --no-cache ffmpeg mesa-dri-gallium intel-media-driver
 
