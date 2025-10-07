@@ -3,7 +3,7 @@ module github.com/bluenviron/mediamtx
 go 1.25.0
 
 require (
-	code.cloudfoundry.org/bytefmt v0.52.0
+	code.cloudfoundry.org/bytefmt v0.53.0
 	github.com/MicahParks/jwkset v0.11.0
 	github.com/MicahParks/keyfunc/v3 v3.6.2
 	github.com/abema/go-mp4 v1.4.1
@@ -26,7 +26,7 @@ require (
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/matthewhartstonge/argon2 v1.4.0
 	github.com/pion/ice/v4 v4.0.10
-	github.com/pion/interceptor v0.1.40
+	github.com/pion/interceptor v0.1.41
 	github.com/pion/logging v0.2.4
 	github.com/pion/rtcp v1.2.15
 	github.com/pion/rtp v1.8.22
