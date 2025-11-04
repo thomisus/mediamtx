@@ -12,11 +12,17 @@ The RTSP protocol supports several underlying transport protocols, that are chos
 
 To change the transport protocol, you have to tune the configuration of the client you are using to publish or read streams. In most clients, the default transport protocol is UDP.
 
-For instance, FFmpeg allows to change the transport protocol with the `-rtsp_transport` flag:
+FFmpeg allows to change the transport protocol with the `-rtsp_transport` flag:
 
 ```sh
 ffmpeg -rtsp_transport tcp -i rtsp://localhost:8554/mystream -c copy output.mp4
 ```
+
+Available options are:
+
+- `-rtsp_transport tcp` to pick the TCP transport protocol
+- `-rtsp_transport udp` to pick the UDP transport protocol
+- `-rtsp_transport udp_multicast` to pick the UDP-multicast transport protocol
 
 GStreamer allows to change the transport protocol with the `protocols` property of `rtspsrc` and `rtspclientsink`:
 
@@ -24,6 +30,12 @@ GStreamer allows to change the transport protocol with the `protocols` property 
 gst-launch-1.0 filesrc location=file.mp4 ! qtdemux name=d \
 d.video_0 ! rtspclientsink location=rtsp://localhost:8554/mystream protocols=tcp
 ```
+
+Available options are:
+
+- `protocols=tcp` to pick the TCP transport protocol
+- `protocols=udp` to pick the UDP transport protocol
+- `protocols=udp-mcast` to pick the UDP-multicast transport protocol
 
 VLC allows to use the TCP transport protocol through the `--rtsp_tcp` flag:
 
@@ -92,51 +104,3 @@ paths:
 ```
 
 There are also the `rtsp+https`, `rtsp+ws`, `rtsp+wss` schemes to handle any variant.
-
-## Decreasing corrupted frames
-
-In some scenarios, when publishing or reading from the server with RTSP, frames can get corrupted. This can be caused by several reasons:
-
-- When the transport protocol is UDP (which is default one), packets sent to the server might get discarded because the UDP read buffer size is too small. This can be noticed in logs through the "RTP packets lost" message. Try increasing the UDP read buffer size:
-
-  ```yml
-  rtspUDPReadBufferSize: 1000000
-  ```
-
-  If the source of the stream is a camera:
-
-  ```yml
-  paths:
-    test:
-      source: rtsp://..
-      rtspUDPReadBufferSize: 1000000
-  ```
-
-  Both these options require the `net.core.rmem_max` system parameter to be equal or greater than `rtspUDPReadBufferSize`:
-
-  ```sh
-  sudo sysctl net.core.rmem_max=100000000
-  ```
-
-- When the transport protocol is UDP (which is the default one), packets sent from the server to readers might get discarded because the write queue is too small. This can be noticed in logs through the "reader is too slow" message. Try increasing the write queue:
-
-  ```yml
-  writeQueueSize: 1024
-  ```
-
-- The stream is too big and it can't be transmitted correctly with the UDP transport protocol. UDP is more performant, faster and more efficient than TCP, but doesn't have a retransmission mechanism, that is needed in case of streams that need a large bandwidth. A solution consists in switching to TCP:
-
-  ```yml
-  rtspTransports: [tcp]
-  ```
-
-  In case the source is a camera:
-
-  ```yml
-  paths:
-    test:
-      source: rtsp://..
-      rtspTransport: tcp
-  ```
-
-- The stream throughput is too big to be handled by the network between server and readers. Upgrade the network or decrease the stream bitrate by re-encoding it.
