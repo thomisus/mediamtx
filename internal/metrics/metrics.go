@@ -74,7 +74,7 @@ type Metrics struct {
 	Encryption     bool
 	ServerKey      string
 	ServerCert     string
-	AllowOrigin    string
+	AllowOrigins   []string
 	TrustedProxies conf.IPNetworks
 	ReadTimeout    conf.Duration
 	WriteTimeout   conf.Duration
@@ -98,13 +98,14 @@ func (m *Metrics) Initialize() error {
 	router := gin.New()
 	router.SetTrustedProxies(m.TrustedProxies.ToTrustedProxies()) //nolint:errcheck
 
-	router.Use(m.middlewareOrigin)
+	router.Use(m.middlewarePreflightRequests)
 	router.Use(m.middlewareAuth)
 
 	router.GET("/metrics", m.onMetrics)
 
 	m.httpServer = &httpp.Server{
 		Address:      m.Address,
+		AllowOrigins: m.AllowOrigins,
 		ReadTimeout:  time.Duration(m.ReadTimeout),
 		WriteTimeout: time.Duration(m.WriteTimeout),
 		Encryption:   m.Encryption,
@@ -134,11 +135,7 @@ func (m *Metrics) Log(level logger.Level, format string, args ...any) {
 	m.Parent.Log(level, "[metrics] "+format, args...)
 }
 
-func (m *Metrics) middlewareOrigin(ctx *gin.Context) {
-	ctx.Header("Access-Control-Allow-Origin", m.AllowOrigin)
-	ctx.Header("Access-Control-Allow-Credentials", "true")
-
-	// preflight requests
+func (m *Metrics) middlewarePreflightRequests(ctx *gin.Context) {
 	if ctx.Request.Method == http.MethodOptions &&
 		ctx.Request.Header.Get("Access-Control-Request-Method") != "" {
 		ctx.Header("Access-Control-Allow-Methods", "OPTIONS, GET")
@@ -160,7 +157,10 @@ func (m *Metrics) middlewareAuth(ctx *gin.Context) {
 	if err != nil {
 		if err.AskCredentials {
 			ctx.Header("WWW-Authenticate", `Basic realm="mediamtx"`)
-			ctx.AbortWithStatus(http.StatusUnauthorized)
+			ctx.AbortWithStatusJSON(http.StatusUnauthorized, &defs.APIError{
+				Status: "error",
+				Error:  "authentication error",
+			})
 			return
 		}
 
@@ -169,7 +169,10 @@ func (m *Metrics) middlewareAuth(ctx *gin.Context) {
 		// wait some seconds to delay brute force attacks
 		<-time.After(auth.PauseAfterError)
 
-		ctx.AbortWithStatus(http.StatusUnauthorized)
+		ctx.AbortWithStatusJSON(http.StatusUnauthorized, &defs.APIError{
+			Status: "error",
+			Error:  "authentication error",
+		})
 		return
 	}
 }
