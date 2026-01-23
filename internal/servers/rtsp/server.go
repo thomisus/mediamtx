@@ -39,14 +39,32 @@ func interfaceIsEmpty(i any) bool {
 func printAddresses(srv *gortsplib.Server) string {
 	var ret []string
 
-	ret = append(ret, fmt.Sprintf("%s (TCP)", srv.RTSPAddress))
+	tmp := srv.RTSPAddress
+	if srv.TLSConfig == nil {
+		tmp += " (TCP/RTSP)"
+	} else {
+		tmp += " (TCP/RTSPS)"
+	}
+	ret = append(ret, tmp)
 
 	if srv.UDPRTPAddress != "" {
-		ret = append(ret, fmt.Sprintf("%s (UDP/RTP)", srv.UDPRTPAddress))
+		tmp = srv.UDPRTPAddress
+		if srv.TLSConfig == nil {
+			tmp += " (UDP/RTP)"
+		} else {
+			tmp += " (UDP/SRTP)"
+		}
+		ret = append(ret, tmp)
 	}
 
 	if srv.UDPRTCPAddress != "" {
-		ret = append(ret, fmt.Sprintf("%s (UDP/RTCP)", srv.UDPRTCPAddress))
+		tmp = srv.UDPRTCPAddress
+		if srv.TLSConfig == nil {
+			tmp += " (UDP/RTCP)"
+		} else {
+			tmp += " (UDP/SRTCP)"
+		}
+		ret = append(ret, tmp)
 	}
 
 	return strings.Join(ret, ", ")
@@ -76,8 +94,7 @@ type Server struct {
 	ReadTimeout         conf.Duration
 	WriteTimeout        conf.Duration
 	WriteQueueSize      int
-	UseUDP              bool
-	UseMulticast        bool
+	RTSPTransports      conf.RTSPTransports
 	RTPAddress          string
 	RTCPAddress         string
 	MulticastIPRange    string
@@ -123,12 +140,12 @@ func (s *Server) Initialize() error {
 		AuthMethods:       s.AuthMethods,
 	}
 
-	if s.UseUDP {
+	if _, ok := s.RTSPTransports[gortsplib.ProtocolUDP]; ok {
 		s.srv.UDPRTPAddress = s.RTPAddress
 		s.srv.UDPRTCPAddress = s.RTCPAddress
 	}
 
-	if s.UseMulticast {
+	if _, ok := s.RTSPTransports[gortsplib.ProtocolUDPMulticast]; ok {
 		s.srv.MulticastIPRange = s.MulticastIPRange
 		s.srv.MulticastRTPPort = s.MulticastRTPPort
 		s.srv.MulticastRTCPPort = s.MulticastRTCPPort
