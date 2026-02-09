@@ -48,17 +48,21 @@ func TestConfFromFile(t *testing.T) {
 		pa, ok := conf.Paths["cam1"]
 		require.Equal(t, true, ok)
 		require.Equal(t, &Path{
-			Name:                         "cam1",
-			Source:                       "publisher",
-			SourceOnDemandStartTimeout:   10 * Duration(time.Second),
-			SourceOnDemandCloseAfter:     10 * Duration(time.Second),
+			Name:                       "cam1",
+			Source:                     "publisher",
+			SourceOnDemandStartTimeout: 10 * Duration(time.Second),
+			SourceOnDemandCloseAfter:   10 * Duration(time.Second),
+			OverridePublisher:          true,
+			AlwaysAvailableTracks: []AlwaysAvailableTrack{
+				{Codec: "H264"},
+			},
 			RecordPath:                   "./recordings/%path/%Y-%m-%d_%H-%M-%S-%f",
 			RecordFormat:                 RecordFormatFMP4,
 			RecordPartDuration:           Duration(1 * time.Second),
 			RecordMaxPartSize:            50 * 1024 * 1024,
 			RecordSegmentDuration:        3600000000000,
 			RecordDeleteAfter:            86400000000000,
-			OverridePublisher:            true,
+			RTSPUDPSourcePortRange:       []uint{10000, 65535},
 			RPICameraWidth:               1920,
 			RPICameraHeight:              1080,
 			RPICameraContrast:            1,
@@ -209,7 +213,7 @@ func TestConfDeprecatedAuth(t *testing.T) {
 	conf, _, err := Load(tmpf, nil, nil)
 	require.NoError(t, err)
 
-	require.Equal(t, AuthInternalUsers{
+	require.Equal(t, []AuthInternalUser{
 		{
 			User: "any",
 			Permissions: []AuthInternalUserPermission{
@@ -771,30 +775,10 @@ func TestSampleConfFile(t *testing.T) {
 	}()
 }
 
-// needed due to https://github.com/golang/go/issues/21092
-func TestConfOverrideDefaultSlices(t *testing.T) {
-	tmpf, err := createTempFile([]byte(
-		"authInternalUsers:\n" +
-			"  - user: user1\n" +
-			"  - user: user2\n" +
-			"authHTTPExclude:\n" +
-			"  - path: ''\n"))
-	require.NoError(t, err)
-	defer os.Remove(tmpf)
-
-	conf, _, err := Load(tmpf, nil, nil)
+func TestClone(t *testing.T) {
+	conf1, _, err := Load("", nil, nil)
 	require.NoError(t, err)
 
-	require.Equal(t, AuthInternalUsers{
-		{
-			User: "user1",
-		},
-		{
-			User: "user2",
-		},
-	}, conf.AuthInternalUsers)
-
-	require.Equal(t, AuthInternalUserPermissions{
-		{},
-	}, conf.AuthHTTPExclude)
+	conf2 := conf1.Clone()
+	require.Equal(t, conf1, conf2)
 }

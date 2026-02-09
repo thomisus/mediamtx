@@ -33,7 +33,7 @@ var ErrConnNotFound = errors.New("connection not found")
 var ErrSessionNotFound = errors.New("session not found")
 
 func interfaceIsEmpty(i any) bool {
-	return reflect.ValueOf(i).Kind() != reflect.Ptr || reflect.ValueOf(i).IsNil()
+	return reflect.ValueOf(i).Kind() != reflect.Pointer || reflect.ValueOf(i).IsNil()
 }
 
 func printAddresses(srv *gortsplib.Server) string {
@@ -78,7 +78,7 @@ type serverMetrics interface {
 type serverPathManager interface {
 	FindPathConf(req defs.PathFindPathConfReq) (*conf.Path, error)
 	Describe(req defs.PathDescribeReq) defs.PathDescribeRes
-	AddPublisher(_ defs.PathAddPublisherReq) (defs.Path, *stream.Stream, error)
+	AddPublisher(_ defs.PathAddPublisherReq) (defs.Path, *stream.SubStream, error)
 	AddReader(_ defs.PathAddReaderReq) (defs.Path, *stream.Stream, error)
 }
 
@@ -407,11 +407,11 @@ func (s *Server) APIConnsList() (*defs.APIRTSPConnsList, error) {
 	defer s.mutex.RUnlock()
 
 	data := &defs.APIRTSPConnsList{
-		Items: []*defs.APIRTSPConn{},
+		Items: []defs.APIRTSPConn{},
 	}
 
 	for _, c := range s.conns {
-		data.Items = append(data.Items, c.apiItem())
+		data.Items = append(data.Items, *c.apiItem())
 	}
 
 	sort.Slice(data.Items, func(i, j int) bool {
@@ -452,11 +452,11 @@ func (s *Server) APISessionsList() (*defs.APIRTSPSessionList, error) {
 	defer s.mutex.RUnlock()
 
 	data := &defs.APIRTSPSessionList{
-		Items: []*defs.APIRTSPSession{},
+		Items: []defs.APIRTSPSession{},
 	}
 
 	for _, s := range s.sessions {
-		data.Items = append(data.Items, s.apiItem())
+		data.Items = append(data.Items, *s.apiItem())
 	}
 
 	sort.Slice(data.Items, func(i, j int) bool {

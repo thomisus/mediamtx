@@ -160,8 +160,8 @@ func New(args []string) (*Core, bool) {
 	}
 
 	if cli.Upgrade {
-		err = upgrade()
-		if err != nil {
+		err = upgrade() //nolint:staticcheck
+		if err != nil { //nolint:staticcheck
 			fmt.Printf("ERR: %v\n", err)
 			os.Exit(1)
 		}
@@ -292,7 +292,7 @@ func (p *Core) createResources(initial bool) error {
 	if p.logger == nil {
 		i := &logger.Logger{
 			Level:        logger.Level(p.conf.LogLevel),
-			Destinations: p.conf.LogDestinations,
+			Destinations: p.conf.LogDestinations.ToDestinations(),
 			Structured:   p.conf.LogStructured,
 			File:         p.conf.LogFile,
 			SysLogPrefix: p.conf.SysLogPrefix,
@@ -337,6 +337,7 @@ func (p *Core) createResources(initial bool) error {
 			Method:             p.conf.AuthMethod,
 			InternalUsers:      p.conf.AuthInternalUsers,
 			HTTPAddress:        p.conf.AuthHTTPAddress,
+			HTTPFingerprint:    p.conf.AuthHTTPFingerprint,
 			HTTPExclude:        p.conf.AuthHTTPExclude,
 			JWTJWKS:            p.conf.AuthJWTJWKS,
 			JWTJWKSFingerprint: p.conf.AuthJWTJWKSFingerprint,
@@ -451,7 +452,7 @@ func (p *Core) createResources(initial bool) error {
 
 		i := &rtsp.Server{
 			Address:             p.conf.RTSPAddress,
-			AuthMethods:         p.conf.RTSPAuthMethods,
+			AuthMethods:         p.conf.RTSPAuthMethods.ToAuthMethods(),
 			UDPReadBufferSize:   udpReadBufferSize,
 			ReadTimeout:         p.conf.ReadTimeout,
 			WriteTimeout:        p.conf.WriteTimeout,
@@ -493,7 +494,7 @@ func (p *Core) createResources(initial bool) error {
 
 		i := &rtsp.Server{
 			Address:             p.conf.RTSPSAddress,
-			AuthMethods:         p.conf.RTSPAuthMethods,
+			AuthMethods:         p.conf.RTSPAuthMethods.ToAuthMethods(),
 			UDPReadBufferSize:   udpReadBufferSize,
 			ReadTimeout:         p.conf.ReadTimeout,
 			WriteTimeout:        p.conf.WriteTimeout,
@@ -719,6 +720,7 @@ func (p *Core) closeResources(newConf *conf.Conf, calledByAPI bool) {
 	closeAuthManager := newConf == nil ||
 		newConf.AuthMethod != p.conf.AuthMethod ||
 		newConf.AuthHTTPAddress != p.conf.AuthHTTPAddress ||
+		newConf.AuthHTTPFingerprint != p.conf.AuthHTTPFingerprint ||
 		!reflect.DeepEqual(newConf.AuthHTTPExclude, p.conf.AuthHTTPExclude) ||
 		newConf.AuthJWTJWKS != p.conf.AuthJWTJWKS ||
 		newConf.AuthJWTJWKSFingerprint != p.conf.AuthJWTJWKSFingerprint ||
