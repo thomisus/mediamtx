@@ -778,18 +778,18 @@ components:
           type: string
         remoteAddr:
           type: string
-        bytesReceived:
-          type: integer
-          format: uint64
-        bytesSent:
-          type: integer
-          format: uint64
         session:
           type: string
           format: uuid
           nullable: true
         tunnel:
           type: string
+        bytesReceived:
+          type: integer
+          format: uint64
+        bytesSent:
+          type: integer
+          format: uint64
 
     RTSPConnList:
       type: object
@@ -828,6 +828,11 @@ components:
         profile:
           type: string
           nullable: true
+        conns:
+          type: array
+          items:
+            type: string
+            format: uuid
         bytesReceived:
           type: integer
           format: uint64
@@ -2623,7 +2628,7 @@ paths:
     get:
       operationId: recordingsList
       tags: [Recordings]
-      summary: returns all recordings.
+      summary: returns all recordings, splitted by path.
       description: ''
       parameters:
       - name: page
@@ -2662,7 +2667,7 @@ paths:
     get:
       operationId: recordingsGet
       tags: [Recordings]
-      summary: returns recordings for a path.
+      summary: returns recordings of a path.
       description: ''
       parameters:
       - name: name
