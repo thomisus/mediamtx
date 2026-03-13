@@ -54,7 +54,6 @@ func setAllNilSlicesToEmptyRecursive(rv reflect.Value) {
 	if rv.Kind() == reflect.Struct {
 		for i := range rv.NumField() {
 			field := rv.Field(i)
-
 			switch field.Kind() {
 			case reflect.Slice:
 				if field.IsNil() {
@@ -247,6 +246,7 @@ type Conf struct {
 	LogStructured       bool            `json:"logStructured"`
 	LogFile             string          `json:"logFile"`
 	SysLogPrefix        string          `json:"sysLogPrefix"`
+	DumpPackets         bool            `json:"dumpPackets"`
 	ReadTimeout         Duration        `json:"readTimeout"`
 	WriteTimeout        Duration        `json:"writeTimeout"`
 	ReadBufferCount     *int            `json:"readBufferCount,omitempty"` // deprecated
@@ -380,9 +380,9 @@ type Conf struct {
 	WebRTCIPsFromInterfacesList []string          `json:"webrtcIPsFromInterfacesList"`
 	WebRTCAdditionalHosts       []string          `json:"webrtcAdditionalHosts"`
 	WebRTCICEServers2           []WebRTCICEServer `json:"webrtcICEServers2"`
+	WebRTCSTUNGatherTimeout     Duration          `json:"webrtcSTUNGatherTimeout"`
 	WebRTCHandshakeTimeout      Duration          `json:"webrtcHandshakeTimeout"`
 	WebRTCTrackGatherTimeout    Duration          `json:"webrtcTrackGatherTimeout"`
-	WebRTCSTUNGatherTimeout     Duration          `json:"webrtcSTUNGatherTimeout"`
 	WebRTCICEUDPMuxAddress      *string           `json:"webrtcICEUDPMuxAddress,omitempty"`  // deprecated
 	WebRTCICETCPMuxAddress      *string           `json:"webrtcICETCPMuxAddress,omitempty"`  // deprecated
 	WebRTCICEHostNAT1To1IPs     *[]string         `json:"webrtcICEHostNAT1To1IPs,omitempty"` // deprecated
@@ -513,9 +513,9 @@ func (conf *Conf) setDefaults() {
 	conf.WebRTCAllowOrigins = []string{"*"}
 	conf.WebRTCLocalUDPAddress = ":8189"
 	conf.WebRTCIPsFromInterfaces = true
+	conf.WebRTCSTUNGatherTimeout = 5 * Duration(time.Second)
 	conf.WebRTCHandshakeTimeout = 10 * Duration(time.Second)
 	conf.WebRTCTrackGatherTimeout = 2 * Duration(time.Second)
-	conf.WebRTCSTUNGatherTimeout = 5 * Duration(time.Second)
 
 	// SRT server
 	conf.SRT = true
@@ -621,6 +621,10 @@ func (conf *Conf) Validate(l logger.Writer) error {
 
 	if conf.WriteTimeout <= 0 {
 		return fmt.Errorf("'writeTimeout' must be greater than zero")
+	}
+
+	if conf.WriteQueueSize <= 0 {
+		return fmt.Errorf("'writeQueueSize' must be greater than zero")
 	}
 
 	if (conf.WriteQueueSize & (conf.WriteQueueSize - 1)) != 0 {
