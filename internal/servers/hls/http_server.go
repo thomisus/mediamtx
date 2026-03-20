@@ -145,7 +145,7 @@ func (s *httpServer) onRequest(ctx *gin.Context) {
 		return
 	}
 
-	pathConf, err := s.pathManager.FindPathConf(defs.PathFindPathConfReq{
+	res, err := s.pathManager.FindPathConf(defs.PathFindPathConfReq{
 		AccessRequest: defs.PathAccessRequest{
 			Name:        dir,
 			Query:       ctx.Request.URL.RawQuery,
@@ -161,7 +161,7 @@ func (s *httpServer) onRequest(ctx *gin.Context) {
 			if terr.AskCredentials {
 				ctx.Header("WWW-Authenticate", `Basic realm="mediamtx"`)
 				ctx.AbortWithStatusJSON(http.StatusUnauthorized, &defs.APIError{
-					Status: "error",
+					Status: defs.APIErrorStatusError,
 					Error:  "authentication error",
 				})
 				return
@@ -173,7 +173,7 @@ func (s *httpServer) onRequest(ctx *gin.Context) {
 			<-time.After(auth.PauseAfterError)
 
 			ctx.AbortWithStatusJSON(http.StatusUnauthorized, &defs.APIError{
-				Status: "error",
+				Status: defs.APIErrorStatusError,
 				Error:  "authentication error",
 			})
 			return
@@ -196,20 +196,14 @@ func (s *httpServer) onRequest(ctx *gin.Context) {
 			path:           dir,
 			remoteAddr:     httpp.RemoteAddr(ctx),
 			query:          ctx.Request.URL.RawQuery,
-			sourceOnDemand: pathConf.SourceOnDemand,
+			sourceOnDemand: res.Conf.SourceOnDemand,
 		})
 		if err != nil {
 			ctx.Writer.WriteHeader(http.StatusNotFound)
 			return
 		}
 
-		mi := mux.getInstance()
-		if mi == nil {
-			ctx.Writer.WriteHeader(http.StatusNotFound)
-			return
-		}
-
 		ctx.Request.URL.Path = fname
-		mi.handleRequest(ctx)
+		mux.handleRequest(ctx)
 	}
 }

@@ -175,6 +175,18 @@ openssl s_client -connect my_identity_server:443 </dev/null 2>/dev/null | sed -n
 openssl x509 -in server.crt -noout -fingerprint -sha256 | cut -d "=" -f2 | tr -d ':'
 ```
 
+Optionally, the JWT `iss` (issuer) and `aud` (audience) claims can be validated by setting `authJWTIssuer` and `authJWTAudience`. When set, tokens that don't contain the expected values will be rejected:
+
+```yml
+authMethod: jwt
+authJWTJWKS: http://my_identity_server/jwks_endpoint
+authJWTClaimKey: mediamtx_permissions
+authJWTIssuer: http://my_identity_server
+authJWTAudience: mediamtx
+```
+
+Leave these fields empty to skip validation of the respective claims.
+
 #### Keycloak setup
 
 Here's a tutorial on how to setup the [Keycloak identity server](https://www.keycloak.org/) in order to provide JWTs.
@@ -285,7 +297,7 @@ Username and password can be passed through the `Authorization: Basic` HTTP head
 Authorization: Basic base64(user:pass)
 ```
 
-When using a web browser, a dialog is first shown to users, asking for credentials, and then the header is automatically inserted into every request. If you need to automatically fill credentials from a parent web page, see [Embed streams in a website](14-embed-streams-in-a-website.md).
+When using a web browser, a dialog is first shown to users, asking for credentials, and then the header is automatically inserted into every request. If you need to automatically fill credentials from a parent web page, read [Embed streams in a website](14-embed-streams-in-a-website.md).
 
 If the `Authorization: Basic` header cannot be used (for instance, in software like OBS Studio, which only allows to provide a "Bearer Token"), credentials can be passed through the `Authorization: Bearer` header (i.e. the "Bearer Token" in OBS), where the value is the concatenation of username and password, separated by a colon:
 
@@ -313,7 +325,7 @@ Pass the token as a query parameter:
 rtmp://localhost/mystream?jwt=jwt
 ```
 
-WARNING: FFmpeg implementation of RTMP does not support query parameters that are longer than 1024 characters, therefore you have to configure your identity server in order to produce JWTs that are shorter than this threshold.
+WARNING: FFmpeg implementation of RTMP does not support URLs that are longer than 1024 characters (this is the [TCURL_MAX_LENGTH constant](https://github.com/FFmpeg/FFmpeg/blob/f951aa9ef382d6bb517e05d04d52710f751de427/libavformat/rtmpproto.c#L55)), therefore you have to configure your identity server in order to produce JWTs that are shorter than this threshold.
 
 ### SRT
 

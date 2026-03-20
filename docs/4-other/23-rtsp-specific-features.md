@@ -1,12 +1,12 @@
 # RTSP-specific features
 
-RTSP is a protocol that can be used for publishing and reading streams. Regarding specific tasks, see [Publish](../2-publish/06-rtsp-clients.md) and [Read](../3-read/04-rtsp.md). Features in this page are shared among both tasks.
+RTSP is a protocol that can be used for publishing and reading streams. Regarding specific tasks, read [Publish](../2-publish/06-rtsp-clients.md) and [Read](../3-read/04-rtsp.md). Features in this page are shared among both tasks.
 
 ## Transport protocols
 
 A RTSP session is split in two parts: the handshake, which is always performed with the TCP protocol, and data streaming, which can be performed with an arbitrary underlying transport protocol, which is chosen by the client during the handshake:
 
-- UDP: the most performant, but require clients to access two additional UDP ports on the server, which is often impossible due to blocking or remapping by NATs/firewalls in between.
+- UDP: the most performant, but requires clients to access two additional UDP ports on the server, which is often impossible due to blocking or remapping by NATs/firewalls in between.
 - UDP-multicast: allows to save bandwidth when clients are all in the same LAN, by sending packets once to a fixed multicast IP.
 - TCP: the most versatile.
 
@@ -94,9 +94,9 @@ In environments where HTTP is the only protocol available for exposing services 
 - RTSP over WebSocket: more efficient, requires WebSocket support from the gateway / firewall
 - RTSP over HTTP: older variant, should work even in extreme cases
 
-_MediaMTX_ is automatically able to handle incoming HTTP tunneled connections, without any configuration required.
+_MediaMTX_ is automatically able to handle incoming HTTP-tunneled RTSP connections without any configuration required.
 
-In order to read a RTSP from an external server using HTTP tunneling, you can use the `rtsp+http` scheme:
+In order to read a stream from an external RTSP server using HTTP tunneling, you can use the `rtsp+http` scheme:
 
 ```yml
 paths:
@@ -104,3 +104,7 @@ paths:
 ```
 
 There are also the `rtsp+https`, `rtsp+ws`, `rtsp+wss` schemes to handle any combination.
+
+## MPEG-TS inside RTSP
+
+read [MPEG-TS inside RTSP](../2-publish/06-rtsp-clients.md#mpeg-ts-inside-rtsp) in the "Publish with RTSP clients" page.

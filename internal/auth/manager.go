@@ -75,6 +75,8 @@ type Manager struct {
 	JWTClaimKey        string
 	JWTExclude         []conf.AuthInternalUserPermission
 	JWTInHTTPQuery     bool
+	JWTIssuer          string
+	JWTAudience        string
 	ReadTimeout        time.Duration
 
 	mutex           sync.RWMutex
@@ -90,41 +92,43 @@ func (m *Manager) ReloadInternalUsers(u []conf.AuthInternalUser) {
 }
 
 // Authenticate authenticates a request.
-func (m *Manager) Authenticate(req *Request) *Error {
+// It returns the user name.
+func (m *Manager) Authenticate(req *Request) (string, *Error) {
+	var user string
 	var err error
 
 	switch m.Method {
 	case conf.AuthMethodInternal:
-		err = m.authenticateInternal(req)
+		user, err = m.authenticateInternal(req)
 
 	case conf.AuthMethodHTTP:
-		err = m.authenticateHTTP(req)
+		user, err = m.authenticateHTTP(req)
 
 	default:
-		err = m.authenticateJWT(req)
+		user, err = m.authenticateJWT(req)
 	}
 
 	if err != nil {
-		return &Error{
+		return "", &Error{
 			Wrapped:        err,
 			AskCredentials: (req.Credentials.User == "" && req.Credentials.Pass == "" && req.Credentials.Token == ""),
 		}
 	}
 
-	return nil
+	return user, nil
 }
 
-func (m *Manager) authenticateInternal(req *Request) error {
+func (m *Manager) authenticateInternal(req *Request) (string, error) {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 
 	for _, u := range m.InternalUsers {
 		if ok := m.authenticateWithUser(req, &u); ok {
-			return nil
+			return req.Credentials.User, nil
 		}
 	}
 
-	return fmt.Errorf("authentication failed")
+	return "", fmt.Errorf("authentication failed")
 }
 
 func (m *Manager) authenticateWithUser(
@@ -154,9 +158,9 @@ func (m *Manager) authenticateWithUser(
 	return true
 }
 
-func (m *Manager) authenticateHTTP(req *Request) error {
+func (m *Manager) authenticateHTTP(req *Request) (string, error) {
 	if matchesPermission(m.HTTPExclude, req) {
-		return nil
+		return "", nil
 	}
 
 	enc, _ := json.Marshal(struct {
@@ -183,7 +187,7 @@ func (m *Manager) authenticateHTTP(req *Request) error {
 
 	u, err := url.Parse(m.HTTPAddress)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	tr := &http.Transport{
@@ -198,29 +202,29 @@ func (m *Manager) authenticateHTTP(req *Request) error {
 
 	res, err := httpClient.Post(m.HTTPAddress, "application/json", bytes.NewReader(enc))
 	if err != nil {
-		return fmt.Errorf("HTTP request failed: %w", err)
+		return "", fmt.Errorf("HTTP request failed: %w", err)
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode < 200 || res.StatusCode > 299 {
 		if resBody, err2 := io.ReadAll(res.Body); err2 == nil && len(resBody) != 0 {
-			return fmt.Errorf("server replied with code %d: %s", res.StatusCode, string(resBody))
+			return "", fmt.Errorf("server replied with code %d: %s", res.StatusCode, string(resBody))
 		}
 
-		return fmt.Errorf("server replied with code %d", res.StatusCode)
+		return "", fmt.Errorf("server replied with code %d", res.StatusCode)
 	}
 
-	return nil
+	return req.Credentials.User, nil
 }
 
-func (m *Manager) authenticateJWT(req *Request) error {
+func (m *Manager) authenticateJWT(req *Request) (string, error) {
 	if matchesPermission(m.JWTExclude, req) {
-		return nil
+		return "", nil
 	}
 
 	keyfunc, err := m.pullJWTJWKS()
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	var encodedJWT string
@@ -237,31 +241,39 @@ func (m *Manager) authenticateJWT(req *Request) error {
 		var v url.Values
 		v, err = url.ParseQuery(req.Query)
 		if err != nil {
-			return err
+			return "", err
 		}
 
 		if len(v["jwt"]) != 1 || len(v["jwt"][0]) == 0 {
-			return fmt.Errorf("JWT not provided")
+			return "", fmt.Errorf("JWT not provided")
 		}
 
 		encodedJWT = v["jwt"][0]
 
 	default:
-		return fmt.Errorf("JWT not provided")
+		return "", fmt.Errorf("JWT not provided")
+	}
+
+	var opts []jwt.ParserOption
+	if m.JWTIssuer != "" {
+		opts = append(opts, jwt.WithIssuer(m.JWTIssuer))
+	}
+	if m.JWTAudience != "" {
+		opts = append(opts, jwt.WithAudience(m.JWTAudience))
 	}
 
 	var cc jwtClaims
 	cc.permissionsKey = m.JWTClaimKey
-	_, err = jwt.ParseWithClaims(encodedJWT, &cc, keyfunc)
+	_, err = jwt.ParseWithClaims(encodedJWT, &cc, keyfunc, opts...)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	if !matchesPermission(cc.permissions, req) {
-		return fmt.Errorf("user doesn't have permission to perform action")
+		return "", fmt.Errorf("user doesn't have permission to perform action")
 	}
 
-	return nil
+	return cc.Subject, nil
 }
 
 func (m *Manager) pullJWTJWKS() (jwt.Keyfunc, error) {

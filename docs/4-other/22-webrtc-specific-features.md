@@ -1,6 +1,6 @@
 # WebRTC-specific features
 
-WebRTC is a protocol that can be used for publishing and reading streams. Regarding specific tasks, see [Publish](../2-publish/04-webrtc-clients.md) and [Read](../3-read/03-webrtc.md). Features in this page are shared among both tasks.
+WebRTC is a protocol that can be used for publishing and reading streams. Regarding specific tasks, read [Publish](../2-publish/04-webrtc-clients.md) and [Read](../3-read/03-webrtc.md). Features in this page are shared among both tasks.
 
 ## Codec support in browsers
 
@@ -111,7 +111,7 @@ coturn/coturn \
 
 We are suggesting and using the following settings:
 
-- enable the TCP transport only. We are assuming you are setupping Coturn because other connectivity methods have failed, thus TCP is more reliable.
+- enable the TCP transport only. We are assuming you are setting up Coturn because other connectivity methods have failed, thus TCP is more reliable.
 - toggle `--network=host` since Coturn allocates a TCP port for each peer connection.
 - set `min-port` and `max-port` to specify the range of TCP ports.
 - enable secret-based authentication, that prevents clients from storing permanently valid credentials.
