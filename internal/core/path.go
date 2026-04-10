@@ -14,6 +14,7 @@ import (
 	"github.com/bluenviron/mediamtx/internal/conf"
 	"github.com/bluenviron/mediamtx/internal/defs"
 	"github.com/bluenviron/mediamtx/internal/externalcmd"
+	"github.com/bluenviron/mediamtx/internal/formatlabel"
 	"github.com/bluenviron/mediamtx/internal/hooks"
 	"github.com/bluenviron/mediamtx/internal/logger"
 	"github.com/bluenviron/mediamtx/internal/recorder"
@@ -88,7 +89,7 @@ type path struct {
 
 	ctx                            context.Context
 	ctxCancel                      func()
-	pendingRequests                *int64
+	pendingRequests                atomic.Int64
 	confMutex                      sync.RWMutex
 	source                         defs.Source
 	stream                         *stream.Stream
@@ -128,7 +129,6 @@ func (pa *path) initialize() {
 	pa.confName = pa.conf.Name
 	pa.ctx = ctx
 	pa.ctxCancel = ctxCancel
-	pa.pendingRequests = new(int64)
 	pa.readers = make(map[defs.Reader]struct{})
 	pa.onDemandStaticSourceReadyTimer = emptyTimer()
 	pa.onDemandStaticSourceCloseTimer = emptyTimer()
@@ -303,7 +303,7 @@ func (pa *path) runInner() error {
 		case req := <-pa.chDescribe:
 			pa.doDescribe(req)
 
-			atomic.AddInt64(pa.pendingRequests, -1)
+			pa.pendingRequests.Add(-1)
 
 			if pa.shouldClose() {
 				pa.parent.closePathIfIdle(pa)
@@ -312,7 +312,7 @@ func (pa *path) runInner() error {
 		case req := <-pa.chAddPublisher:
 			pa.doAddPublisher(req)
 
-			atomic.AddInt64(pa.pendingRequests, -1)
+			pa.pendingRequests.Add(-1)
 
 			if pa.shouldClose() {
 				pa.parent.closePathIfIdle(pa)
@@ -328,7 +328,7 @@ func (pa *path) runInner() error {
 		case req := <-pa.chAddReader:
 			pa.doAddReader(req)
 
-			atomic.AddInt64(pa.pendingRequests, -1)
+			pa.pendingRequests.Add(-1)
 
 			if pa.shouldClose() {
 				pa.parent.closePathIfIdle(pa)
@@ -659,7 +659,7 @@ func (pa *path) doAPIPathsGet(req pathAPIPathsGetReq) {
 				if !pa.isAvailable() {
 					return []defs.APIPathTrackCodec{}
 				}
-				return defs.MediasToCodecs(pa.stream.Desc.Medias)
+				return formatlabel.MediasToLabels(pa.stream.Desc.Medias)
 			}(),
 			Tracks2: func() []defs.APIPathTrack {
 				if !pa.isAvailable() {

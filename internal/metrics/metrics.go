@@ -2,6 +2,7 @@
 package metrics //nolint:revive
 
 import (
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -122,7 +123,13 @@ func (m *Metrics) Initialize() error {
 		return err
 	}
 
-	m.Log(logger.Info, "listener opened on "+m.Address)
+	str := "listener opened on " + m.Address
+	if !m.Encryption {
+		str += " (TCP/HTTP)"
+	} else {
+		str += " (TCP/HTTPS)"
+	}
+	m.Log(logger.Info, str)
 
 	return nil
 }
@@ -148,6 +155,13 @@ func (m *Metrics) middlewarePreflightRequests(ctx *gin.Context) {
 	}
 }
 
+func (m *Metrics) writeErrorNoLog(ctx *gin.Context, status int, err error) {
+	ctx.AbortWithStatusJSON(status, &defs.APIError{
+		Status: defs.APIErrorStatusError,
+		Error:  err.Error(),
+	})
+}
+
 func (m *Metrics) middlewareAuth(ctx *gin.Context) {
 	req := &auth.Request{
 		Action:      conf.AuthActionMetrics,
@@ -160,10 +174,7 @@ func (m *Metrics) middlewareAuth(ctx *gin.Context) {
 	if err != nil {
 		if err.AskCredentials {
 			ctx.Header("WWW-Authenticate", `Basic realm="mediamtx"`)
-			ctx.AbortWithStatusJSON(http.StatusUnauthorized, &defs.APIError{
-				Status: defs.APIErrorStatusError,
-				Error:  "authentication error",
-			})
+			m.writeErrorNoLog(ctx, http.StatusUnauthorized, fmt.Errorf("authentication error"))
 			return
 		}
 
@@ -172,10 +183,7 @@ func (m *Metrics) middlewareAuth(ctx *gin.Context) {
 		// wait some seconds to delay brute force attacks
 		<-time.After(auth.PauseAfterError)
 
-		ctx.AbortWithStatusJSON(http.StatusUnauthorized, &defs.APIError{
-			Status: defs.APIErrorStatusError,
-			Error:  "authentication error",
-		})
+		m.writeErrorNoLog(ctx, http.StatusUnauthorized, fmt.Errorf("authentication error"))
 		return
 	}
 }

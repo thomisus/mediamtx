@@ -2,6 +2,7 @@
 package api //nolint:revive
 
 import (
+	"fmt"
 	"net"
 	"net/http"
 	"reflect"
@@ -16,7 +17,6 @@ import (
 	"github.com/bluenviron/mediamtx/internal/defs"
 	"github.com/bluenviron/mediamtx/internal/logger"
 	"github.com/bluenviron/mediamtx/internal/protocols/httpp"
-	"github.com/bluenviron/mediamtx/internal/recordstore"
 )
 
 func interfaceIsEmpty(i any) bool {
@@ -42,27 +42,6 @@ func paramName(ctx *gin.Context) (string, bool) {
 	}
 
 	return name[1:], true
-}
-
-func recordingsOfPath(
-	pathConf *conf.Path,
-	pathName string,
-) *defs.APIRecording {
-	ret := &defs.APIRecording{
-		Name: pathName,
-	}
-
-	segments, _ := recordstore.FindSegments(pathConf, pathName, nil, nil)
-
-	ret.Segments = make([]defs.APIRecordingSegment, len(segments))
-
-	for i, seg := range segments {
-		ret.Segments[i] = defs.APIRecordingSegment{
-			Start: seg.Start,
-		}
-	}
-
-	return ret
 }
 
 type apiAuthManager interface {
@@ -201,7 +180,13 @@ func (a *API) Initialize() error {
 		return err
 	}
 
-	a.Log(logger.Info, "listener opened on "+a.Address)
+	str := "listener opened on " + a.Address
+	if !a.Encryption {
+		str += " (TCP/HTTP)"
+	} else {
+		str += " (TCP/HTTPS)"
+	}
+	a.Log(logger.Info, str)
 
 	return nil
 }
@@ -222,7 +207,14 @@ func (a *API) writeError(ctx *gin.Context, status int, err error) {
 	a.Log(logger.Error, err.Error())
 
 	// add error to response
-	ctx.JSON(status, &defs.APIError{
+	ctx.AbortWithStatusJSON(status, &defs.APIError{
+		Status: defs.APIErrorStatusError,
+		Error:  err.Error(),
+	})
+}
+
+func (a *API) writeErrorNoLog(ctx *gin.Context, status int, err error) {
+	ctx.AbortWithStatusJSON(status, &defs.APIError{
 		Status: defs.APIErrorStatusError,
 		Error:  err.Error(),
 	})
@@ -254,10 +246,7 @@ func (a *API) middlewareAuth(ctx *gin.Context) {
 	if err != nil {
 		if err.AskCredentials {
 			ctx.Header("WWW-Authenticate", `Basic realm="mediamtx"`)
-			ctx.AbortWithStatusJSON(http.StatusUnauthorized, &defs.APIError{
-				Status: defs.APIErrorStatusError,
-				Error:  "authentication error",
-			})
+			a.writeErrorNoLog(ctx, http.StatusUnauthorized, fmt.Errorf("authentication error"))
 			return
 		}
 
@@ -266,10 +255,7 @@ func (a *API) middlewareAuth(ctx *gin.Context) {
 		// wait some seconds to delay brute force attacks
 		<-time.After(auth.PauseAfterError)
 
-		ctx.AbortWithStatusJSON(http.StatusUnauthorized, &defs.APIError{
-			Status: defs.APIErrorStatusError,
-			Error:  "authentication error",
-		})
+		a.writeErrorNoLog(ctx, http.StatusUnauthorized, fmt.Errorf("authentication error"))
 		return
 	}
 }

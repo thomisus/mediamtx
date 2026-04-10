@@ -3,6 +3,7 @@ package hls
 import (
 	_ "embed"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	gopath "path"
@@ -58,11 +59,18 @@ func (s *httpServer) initialize() error {
 
 	router.Use(s.onRequest)
 
+	var proto string
+	if s.encryption {
+		proto = "hlss"
+	} else {
+		proto = "hls"
+	}
+
 	s.inner = &httpp.Server{
 		Address:           s.address,
 		AllowOrigins:      s.allowOrigins,
 		DumpPackets:       s.dumpPackets,
-		DumpPacketsPrefix: "hls_server_conn",
+		DumpPacketsPrefix: proto + "_server_conn",
 		ReadTimeout:       time.Duration(s.readTimeout),
 		WriteTimeout:      time.Duration(s.writeTimeout),
 		Encryption:        s.encryption,
@@ -96,6 +104,13 @@ func (s *httpServer) middlewarePreflightRequests(ctx *gin.Context) {
 		ctx.AbortWithStatus(http.StatusNoContent)
 		return
 	}
+}
+
+func (s *httpServer) writeErrorNoLog(ctx *gin.Context, status int, err error) {
+	ctx.AbortWithStatusJSON(status, &defs.APIError{
+		Status: defs.APIErrorStatusError,
+		Error:  err.Error(),
+	})
 }
 
 func (s *httpServer) onRequest(ctx *gin.Context) {
@@ -160,10 +175,7 @@ func (s *httpServer) onRequest(ctx *gin.Context) {
 		if errors.As(err, &terr) {
 			if terr.AskCredentials {
 				ctx.Header("WWW-Authenticate", `Basic realm="mediamtx"`)
-				ctx.AbortWithStatusJSON(http.StatusUnauthorized, &defs.APIError{
-					Status: defs.APIErrorStatusError,
-					Error:  "authentication error",
-				})
+				s.writeErrorNoLog(ctx, http.StatusUnauthorized, fmt.Errorf("authentication error"))
 				return
 			}
 
@@ -172,14 +184,11 @@ func (s *httpServer) onRequest(ctx *gin.Context) {
 			// wait some seconds to delay brute force attacks
 			<-time.After(auth.PauseAfterError)
 
-			ctx.AbortWithStatusJSON(http.StatusUnauthorized, &defs.APIError{
-				Status: defs.APIErrorStatusError,
-				Error:  "authentication error",
-			})
+			s.writeErrorNoLog(ctx, http.StatusUnauthorized, fmt.Errorf("authentication error"))
 			return
 		}
 
-		ctx.Writer.WriteHeader(http.StatusNotFound)
+		s.writeErrorNoLog(ctx, http.StatusInternalServerError, err)
 		return
 	}
 

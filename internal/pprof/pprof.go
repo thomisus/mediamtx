@@ -2,6 +2,7 @@
 package pprof //nolint:revive
 
 import (
+	"fmt"
 	"net"
 	"net/http"
 	"time"
@@ -69,7 +70,13 @@ func (pp *PPROF) Initialize() error {
 		return err
 	}
 
-	pp.Log(logger.Info, "listener opened on "+pp.Address)
+	str := "listener opened on " + pp.Address
+	if !pp.Encryption {
+		str += " (TCP/HTTP)"
+	} else {
+		str += " (TCP/HTTPS)"
+	}
+	pp.Log(logger.Info, str)
 
 	return nil
 }
@@ -95,6 +102,13 @@ func (pp *PPROF) middlewarePreflightRequests(ctx *gin.Context) {
 	}
 }
 
+func (pp *PPROF) writeErrorNoLog(ctx *gin.Context, status int, err error) {
+	ctx.AbortWithStatusJSON(status, &defs.APIError{
+		Status: defs.APIErrorStatusError,
+		Error:  err.Error(),
+	})
+}
+
 func (pp *PPROF) middlewareAuth(ctx *gin.Context) {
 	req := &auth.Request{
 		Action:      conf.AuthActionPprof,
@@ -107,10 +121,7 @@ func (pp *PPROF) middlewareAuth(ctx *gin.Context) {
 	if err != nil {
 		if err.AskCredentials {
 			ctx.Header("WWW-Authenticate", `Basic realm="mediamtx"`)
-			ctx.AbortWithStatusJSON(http.StatusUnauthorized, &defs.APIError{
-				Status: defs.APIErrorStatusError,
-				Error:  "authentication error",
-			})
+			pp.writeErrorNoLog(ctx, http.StatusUnauthorized, fmt.Errorf("authentication error"))
 			return
 		}
 
@@ -119,10 +130,7 @@ func (pp *PPROF) middlewareAuth(ctx *gin.Context) {
 		// wait some seconds to delay brute force attacks
 		<-time.After(auth.PauseAfterError)
 
-		ctx.AbortWithStatusJSON(http.StatusUnauthorized, &defs.APIError{
-			Status: defs.APIErrorStatusError,
-			Error:  "authentication error",
-		})
+		pp.writeErrorNoLog(ctx, http.StatusUnauthorized, fmt.Errorf("authentication error"))
 		return
 	}
 }
