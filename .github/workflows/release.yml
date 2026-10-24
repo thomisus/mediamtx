@@ -55,7 +55,7 @@ jobs:
 
             const currentRelease = context.ref.split('/')[2];
 
-          let body = `## New major features\n`
+            let body = `## New major features\n`
             + `\n`
             + `TODO\n`
             + `\n`
