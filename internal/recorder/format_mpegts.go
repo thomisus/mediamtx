@@ -16,6 +16,7 @@ import (
 	"github.com/bluenviron/mediacommon/v2/pkg/codecs/mpeg4video"
 	"github.com/bluenviron/mediacommon/v2/pkg/formats/mpegts"
 	tscodecs "github.com/bluenviron/mediacommon/v2/pkg/formats/mpegts/codecs"
+	"github.com/bluenviron/mediacommon/v2/pkg/formats/mpegts/substructs"
 
 	"github.com/bluenviron/mediamtx/internal/defs"
 	"github.com/bluenviron/mediamtx/internal/formatlabel"
@@ -79,7 +80,7 @@ func (f *formatMPEGTS) initialize() bool {
 		return track
 	}
 
-	for _, media := range f.ri.stream.Desc.Medias {
+	for _, media := range f.ri.stream.OrigDesc.Medias {
 		for _, forma := range media.Formats {
 			clockRate := forma.ClockRate()
 
@@ -103,6 +104,7 @@ func (f *formatMPEGTS) initialize() bool {
 							if !randomAccess {
 								return nil
 							}
+
 							dtsExtractor = &h265.DTSExtractor{}
 							dtsExtractor.Initialize()
 						}
@@ -243,7 +245,9 @@ func (f *formatMPEGTS) initialize() bool {
 
 			case *rtspformat.Opus:
 				track := addTrack(&tscodecs.Opus{
-					ChannelCount: forma.ChannelCount,
+					Desc: &substructs.OpusAudioDescriptor{
+						ChannelConfigCode: 2,
+					},
 				})
 
 				f.ri.reader.OnData(
@@ -422,7 +426,7 @@ func (f *formatMPEGTS) initialize() bool {
 	setuppedFormats := f.ri.reader.Formats()
 
 	n := 1
-	for _, medi := range f.ri.stream.Desc.Medias {
+	for _, medi := range f.ri.stream.OrigDesc.Medias {
 		for _, forma := range medi.Formats {
 			if !slices.Contains(setuppedFormats, forma) {
 				f.ri.Log(logger.Warn, "skipping track %d (%s)", n, formatlabel.FormatToLabel(forma))

@@ -3,7 +3,7 @@ name: release
 on:
   push:
     tags:
-    - 'v*'
+      - "v*"
 
 env:
   REGISTRY: ghcr.io
@@ -18,42 +18,42 @@ permissions:
 
 jobs:
   binaries:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
-    - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
-    - run: make binaries
+      - run: make binaries
 
-    - run: cd binaries && sha256sum -b * > checksums.sha256
+      - run: cd binaries && sha256sum -b * > checksums.sha256
 
-    - uses: actions/attest@v4
-      with:
-        subject-path: '${{ github.workspace }}/binaries/*'
+      - uses: actions/attest@v4.2.2
+        with:
+          subject-path: "${{ github.workspace }}/binaries/*"
 
-    - uses: actions/upload-artifact@v7
-      with:
-        name: binaries
-        path: binaries
+      - uses: actions/upload-artifact@v7
+        with:
+          name: binaries
+          path: binaries
 
   github_release:
     needs: binaries
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
-    - uses: actions/download-artifact@v8
-      with:
-        name: binaries
-        path: binaries
+      - uses: actions/download-artifact@v8
+        with:
+          name: binaries
+          path: binaries
 
-    - uses: actions/github-script@v9
-      with:
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        script: |
-          const fs = require('fs').promises;
-          const { repo: { owner, repo } } = context;
+      - uses: actions/github-script@v9
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs').promises;
+            const { repo: { owner, repo } } = context;
 
-          const currentRelease = context.ref.split('/')[2];
+            const currentRelease = context.ref.split('/')[2];
 
           let body = `## New major features\n`
             + `\n`
@@ -80,122 +80,85 @@ jobs:
             + '```\n'
             + `\n`;
 
-          const res = await github.rest.repos.createRelease({
-            owner,
-            repo,
-            tag_name: currentRelease,
-            name: currentRelease,
-            body,
-          });
-          const release_id = res.data.id;
-
-          for (const name of await fs.readdir('./binaries/')) {
-            await github.rest.repos.uploadReleaseAsset({
+            const res = await github.rest.repos.createRelease({
               owner,
               repo,
-              release_id,
-              name,
-              data: await fs.readFile(`./binaries/${name}`),
+              tag_name: currentRelease,
+              name: currentRelease,
+              body,
             });
-          }
+            const release_id = res.data.id;
+
+            for (const name of await fs.readdir('./binaries/')) {
+              await github.rest.repos.uploadReleaseAsset({
+                owner,
+                repo,
+                release_id,
+                name,
+                data: await fs.readFile(`./binaries/${name}`),
+              });
+            }
 
   github_notify_issues:
     needs: github_release
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
-    - uses: actions/github-script@v9
-      with:
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        script: |
-          const { repo: { owner, repo } } = context;
+      - uses: actions/github-script@v9
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { repo: { owner, repo } } = context;
 
-          const tags = await github.rest.repos.listTags({
-            owner,
-            repo,
-          });
+            const tags = await github.rest.repos.listTags({
+              owner,
+              repo,
+            });
 
-          const curTag = tags.data[0];
-          const prevTag = tags.data[1];
+            const curTag = tags.data[0];
+            const prevTag = tags.data[1];
 
-          const diff = await github.rest.repos.compareCommitsWithBasehead({
-            owner,
-            repo,
-            basehead: `${prevTag.commit.sha}...${curTag.commit.sha}`,
-          });
+            const diff = await github.rest.repos.compareCommitsWithBasehead({
+              owner,
+              repo,
+              basehead: `${prevTag.commit.sha}...${curTag.commit.sha}`,
+            });
 
-          const issues = {};
+            const issues = {};
 
-          for (const commit of diff.data.commits) {
-            for (const match of commit.commit.message.matchAll(/(^| |\()#([0-9]+)( |\)|$)/g)) {
-              issues[match[2]] = 1;
+            for (const commit of diff.data.commits) {
+              for (const match of commit.commit.message.matchAll(/(^| |\()#([0-9]+)( |\)|$)/g)) {
+                issues[match[2]] = 1;
+              }
             }
-          }
 
-          for (const issue in issues) {
-            try {
-              await github.rest.issues.createComment({
-                owner,
-                repo,
-                issue_number: parseInt(issue),
-                body: `This issue is mentioned in release ${curTag.name} 🚀\n`
-                  + `Check out the entire changelog by [clicking here](https://github.com/${owner}/${repo}/releases/tag/${curTag.name})`,
-              });
-            } catch (exc) {
-              console.error(exc.toString());
+            for (const issue in issues) {
+              try {
+                await github.rest.issues.createComment({
+                  owner,
+                  repo,
+                  issue_number: parseInt(issue),
+                  body: `This issue is mentioned in release ${curTag.name} 🚀\n`
+                    + `Check out the entire changelog by [clicking here](https://github.com/${owner}/${repo}/releases/tag/${curTag.name})`,
+                });
+              } catch (exc) {
+                console.error(exc.toString());
+              }
             }
-          }
 
   dockerhub:
     needs: binaries
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
-    - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
-    - uses: actions/download-artifact@v8
-      with:
-        name: binaries
-        path: binaries
+      - uses: actions/download-artifact@v8
+        with:
+          name: binaries
+          path: binaries
 
-    - run: make dockerhub
-      env:
-        DOCKER_USER: ${{ secrets.DOCKER_USER }}
-        DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-
-  api_docs:
-    needs: binaries
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/checkout@v5
-
-    - run: make apidocs
-
-    - run: mv api/*.html api/index.html
-
-    - uses: peaceiris/actions-gh-pages@v4
-      with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_dir: ./api
-
-  docker_github:
-    needs: binaries
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      packages: write
-      
-    steps:
-    - uses: actions/checkout@v4
-
-    - uses: actions/download-artifact@v4
-      with:
-        name: binaries
-        path: binaries
-
-    - run: make github
-      env:
-        REGISTRY: ${{ env.REGISTRY }}
-        DOCKER_USER: ${{ github.actor }}
-        DOCKER_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+      - run: make dockerhub
+        env:
+          DOCKER_USER: ${{ secrets.DOCKER_USER }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}

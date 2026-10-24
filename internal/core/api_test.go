@@ -7,9 +7,12 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
+	"sync"
 	"testing"
 	"time"
 
@@ -28,6 +31,8 @@ import (
 	pwebrtc "github.com/pion/webrtc/v4"
 	"github.com/stretchr/testify/require"
 
+	"github.com/bluenviron/mediamtx/internal/auth"
+	"github.com/bluenviron/mediamtx/internal/conf"
 	"github.com/bluenviron/mediamtx/internal/defs"
 	"github.com/bluenviron/mediamtx/internal/formatlabel"
 	"github.com/bluenviron/mediamtx/internal/protocols/webrtc"
@@ -36,10 +41,14 @@ import (
 )
 
 func checkClose(t *testing.T, closeFunc func() error) {
+	t.Helper()
+
 	require.NoError(t, closeFunc())
 }
 
 func httpRequest(t *testing.T, hc *http.Client, method string, ur string, in any, out any) {
+	t.Helper()
+
 	buf := func() io.Reader {
 		if in == nil {
 			return nil
@@ -70,7 +79,25 @@ func httpRequest(t *testing.T, hc *http.Client, method string, ur string, in any
 	require.NoError(t, err)
 }
 
+func apiMapString(item map[string]any, key string) string {
+	return item[key].(string)
+}
+
+func apiMapNumber(item map[string]any, key string) float64 {
+	return item[key].(float64)
+}
+
+func apiMapUUID(t *testing.T, item map[string]any, key string) uuid.UUID {
+	t.Helper()
+
+	id, err := uuid.Parse(apiMapString(item, key))
+	require.NoError(t, err)
+	return id
+}
+
 func checkError(t *testing.T, msg string, body io.Reader) {
+	t.Helper()
+
 	var resErr map[string]any
 	err := json.NewDecoder(body).Decode(&resErr)
 	require.NoError(t, err)
@@ -124,11 +151,9 @@ func TestAPIPathsList(t *testing.T) {
 		defer source.Close()
 
 		err = source.WritePacketRTP(media0, &rtp.Packet{
-			Header: rtp.Header{
-				Version:     2,
-				PayloadType: 96,
-			},
-			Payload: []byte{5, 1, 2, 3, 4},
+			Version:     2,
+			PayloadType: 96,
+			Payload:     []byte{5, 1, 2, 3, 4},
 		})
 		require.NoError(t, err)
 
@@ -279,6 +304,85 @@ func TestAPIPathsList(t *testing.T) {
 			}},
 		}, out)
 	})
+}
+
+func TestAPIConfigGlobalPatchDisableAPI(t *testing.T) {
+	p, ok := newInstance(t, "api: yes\n")
+	require.Equal(t, true, ok)
+	defer p.Close()
+
+	tr := &http.Transport{}
+	defer tr.CloseIdleConnections()
+	hc := &http.Client{Transport: tr}
+
+	httpRequest(t, hc, http.MethodPatch, "http://localhost:9997/v3/config/global/patch", map[string]any{
+		"api": false,
+	}, nil)
+
+	time.Sleep(500 * time.Millisecond)
+
+	_, err := hc.Get("http://localhost:9997/v3/config/global/get") //nolint:bodyclose
+	require.Error(t, err)
+
+	var urlErr *url.Error
+	require.ErrorAs(t, err, &urlErr)
+}
+
+func TestAPIConfigReloadConcurrentWrites(t *testing.T) {
+	p, ok := newInstance(t, "api: yes\n"+
+		"rtsp: no\n"+
+		"rtmp: no\n"+
+		"hls: no\n"+
+		"webrtc: no\n"+
+		"srt: no\n"+
+		"moq: no\n"+
+		"paths:\n"+
+		"  test:\n")
+	require.Equal(t, true, ok)
+	defer p.Close()
+
+	tr := &http.Transport{}
+	defer tr.CloseIdleConnections()
+	hc := &http.Client{Transport: tr, Timeout: 10 * time.Second}
+
+	send := func(ur string, body string) {
+		req, err := http.NewRequest(http.MethodPatch, ur, bytes.NewBufferString(body))
+		if err != nil {
+			return
+		}
+		req.Header.Set("Content-Type", "application/json")
+		res, err := hc.Do(req)
+		if err == nil {
+			res.Body.Close()
+		}
+	}
+
+	for i := range 5 {
+		var wg sync.WaitGroup
+
+		wg.Go(func() {
+			send("http://localhost:9997/v3/config/global/patch",
+				fmt.Sprintf(`{"runOnConnect":"true %d"}`, i))
+		})
+
+		for range 8 {
+			wg.Go(func() {
+				send("http://localhost:9997/v3/config/paths/patch/test",
+					`{"sourceOnDemand":false}`)
+			})
+		}
+
+		wg.Wait()
+
+		require.Eventually(t, func() bool {
+			res, err := hc.Get("http://localhost:9997/v3/config/paths/list")
+			if err != nil {
+				return false
+			}
+			res.Body.Close()
+			return res.StatusCode == http.StatusOK
+		}, 10*time.Second, 100*time.Millisecond, "API not back after try %d", i)
+	}
 }
 
 func TestAPIPathsGet(t *testing.T) {
@@ -496,14 +600,12 @@ func TestAPIProtocolListGet(t *testing.T) {
 						},*/
 
 						err2 := source.WritePacketRTP(medi, &rtp.Packet{
-							Header: rtp.Header{
-								Version:        2,
-								Marker:         true,
-								PayloadType:    96,
-								SequenceNumber: 123 + uint16(i),
-								Timestamp:      45343 + uint32(i)*90000,
-								SSRC:           563423,
-							},
+							Version:        2,
+							Marker:         true,
+							PayloadType:    96,
+							SequenceNumber: 123 + uint16(i),
+							Timestamp:      45343 + uint32(i)*90000,
+							SSRC:           563423,
 							Payload: []byte{
 								// testSPS,
 								0x05,
@@ -535,15 +637,13 @@ func TestAPIProtocolListGet(t *testing.T) {
 					time.Sleep(500 * time.Millisecond)
 
 					err2 := source.WritePacketRTP(medi, &rtp.Packet{
-						Header: rtp.Header{
-							Version:        2,
-							Marker:         true,
-							PayloadType:    96,
-							SequenceNumber: 123,
-							Timestamp:      45343,
-							SSRC:           563423,
-						},
-						Payload: []byte{5, 1, 2, 3, 4},
+						Version:        2,
+						Marker:         true,
+						PayloadType:    96,
+						SequenceNumber: 123,
+						Timestamp:      45343,
+						SSRC:           563423,
+						Payload:        []byte{5, 1, 2, 3, 4},
 					})
 					require.NoError(t, err2)
 				}()
@@ -666,6 +766,7 @@ func TestAPIProtocolListGet(t *testing.T) {
 							"path":                           "mypath",
 							"query":                          "key=val",
 							"user":                           "",
+							"expiresAt":                      nil,
 							"remoteAddr":                     out1.(map[string]any)["items"].([]any)[0].(map[string]any)["remoteAddr"],
 							"state":                          "publish",
 							"transport":                      "UDP",
@@ -679,6 +780,7 @@ func TestAPIProtocolListGet(t *testing.T) {
 							"rtcpPacketsSent":                float64(0),
 							"rtcpPacketsInError":             float64(0),
 							"conns":                          out1.(map[string]any)["items"].([]any)[0].(map[string]any)["conns"],
+							"userAgent":                      "gortsplib",
 						},
 					},
 				}, out1)
@@ -727,6 +829,7 @@ func TestAPIProtocolListGet(t *testing.T) {
 							"path":                           "mypath",
 							"query":                          "key=val",
 							"user":                           "",
+							"expiresAt":                      nil,
 							"remoteAddr":                     out1.(map[string]any)["items"].([]any)[0].(map[string]any)["remoteAddr"],
 							"state":                          "publish",
 							"transport":                      "UDP",
@@ -740,6 +843,7 @@ func TestAPIProtocolListGet(t *testing.T) {
 							"rtcpPacketsSent":                float64(0),
 							"rtcpPacketsInError":             float64(0),
 							"conns":                          out1.(map[string]any)["items"].([]any)[0].(map[string]any)["conns"],
+							"userAgent":                      "gortsplib",
 						},
 					},
 				}, out1)
@@ -760,8 +864,10 @@ func TestAPIProtocolListGet(t *testing.T) {
 							"path":                    "mypath",
 							"query":                   "key=val",
 							"user":                    "",
+							"expiresAt":               nil,
 							"remoteAddr":              out1.(map[string]any)["items"].([]any)[0].(map[string]any)["remoteAddr"],
 							"state":                   "publish",
+							"userAgent":               "LNX 9,0,124,2",
 						},
 					},
 				}, out1)
@@ -782,8 +888,10 @@ func TestAPIProtocolListGet(t *testing.T) {
 							"path":                    "mypath",
 							"query":                   "key=val",
 							"user":                    "",
+							"expiresAt":               nil,
 							"remoteAddr":              out1.(map[string]any)["items"].([]any)[0].(map[string]any)["remoteAddr"],
 							"state":                   "publish",
+							"userAgent":               "LNX 9,0,124,2",
 						},
 					},
 				}, out1)
@@ -800,8 +908,10 @@ func TestAPIProtocolListGet(t *testing.T) {
 							"path":          "mypath",
 							"query":         "",
 							"user":          "",
+							"expiresAt":     nil,
 							"isCDN":         false,
 							"outboundBytes": out1.(map[string]any)["items"].([]any)[0].(map[string]any)["outboundBytes"],
+							"userAgent":     "Go-http-client/1.1",
 						},
 					},
 				}, out1)
@@ -849,12 +959,14 @@ func TestAPIProtocolListGet(t *testing.T) {
 							"remoteCandidate":           out1.(map[string]any)["items"].([]any)[0].(map[string]any)["remoteCandidate"],
 							"state":                     "read",
 							"user":                      "",
+							"expiresAt":                 nil,
 							"rtcpPacketsReceived":       float64(0),
 							"rtcpPacketsSent":           float64(2),
 							"rtpPacketsJitter":          float64(0),
 							"rtpPacketsLost":            float64(0),
 							"rtpPacketsReceived":        float64(0),
 							"rtpPacketsSent":            float64(1),
+							"userAgent":                 "Go-http-client/1.1",
 						},
 					},
 				}, out1)
@@ -869,14 +981,14 @@ func TestAPIProtocolListGet(t *testing.T) {
 							"bytesAvailReceiveBuf":          float64(0),
 							"bytesAvailSendBuf":             float64(0),
 							"bytesReceiveBuf":               float64(0),
-							"bytesReceived":                 float64(628),
+							"bytesReceived":                 out1.(map[string]any)["items"].([]any)[0].(map[string]any)["bytesReceived"],
 							"bytesReceivedBelated":          float64(0),
 							"bytesReceivedDrop":             float64(0),
 							"bytesReceivedLoss":             float64(0),
 							"bytesReceivedRetrans":          float64(0),
 							"bytesReceivedUndecrypt":        float64(0),
 							"outboundFramesDiscarded":       out1.(map[string]any)["items"].([]any)[0].(map[string]any)["outboundFramesDiscarded"],
-							"bytesReceivedUnique":           float64(628),
+							"bytesReceivedUnique":           out1.(map[string]any)["items"].([]any)[0].(map[string]any)["bytesReceivedUnique"],
 							"bytesRetrans":                  float64(0),
 							"bytesSendBuf":                  float64(0),
 							"bytesSendDrop":                 float64(0),
@@ -924,6 +1036,7 @@ func TestAPIProtocolListGet(t *testing.T) {
 							"remoteAddr":                    out1.(map[string]any)["items"].([]any)[0].(map[string]any)["remoteAddr"],
 							"state":                         "publish",
 							"user":                          "",
+							"expiresAt":                     nil,
 							"usPacketsSendPeriod":           float64(10.967254638671875),
 							"usSndDuration":                 float64(0),
 						},
@@ -995,6 +1108,13 @@ func TestAPIProtocolListGet(t *testing.T) {
 
 			case "hls muxers":
 				out2.(map[string]any)["lastRequest"] = out1.(map[string]any)["items"].([]any)[0].(map[string]any)["lastRequest"]
+
+			case "srt":
+				out2.(map[string]any)["bytesReceived"] = out1.(map[string]any)["items"].([]any)[0].(map[string]any)["bytesReceived"]
+				out2.(map[string]any)["bytesReceivedUnique"] = out1.(map[string]any)["items"].([]any)[0].(map[string]any)["bytesReceivedUnique"]
+				out2.(map[string]any)["packetsReceivedACK"] = out1.(map[string]any)["items"].([]any)[0].(map[string]any)["packetsReceivedACK"]
+				out2.(map[string]any)["packetsSentACK"] = out1.(map[string]any)["items"].([]any)[0].(map[string]any)["packetsSentACK"]
+				out2.(map[string]any)["msRTT"] = out1.(map[string]any)["items"].([]any)[0].(map[string]any)["msRTT"]
 			}
 
 			require.Equal(t, out1.(map[string]any)["items"].([]any)[0], out2)
@@ -1231,7 +1351,7 @@ func TestAPIProtocolKick(t *testing.T) {
 				u, err := url.Parse("http://localhost:8889/mypath/whip")
 				require.NoError(t, err)
 
-				track := &webrtc.OutgoingTrack{
+				track := &webrtc.OutboundTrack{
 					Caps: pwebrtc.RTPCodecCapability{
 						MimeType:    pwebrtc.MimeTypeH264,
 						ClockRate:   90000,
@@ -1244,7 +1364,7 @@ func TestAPIProtocolKick(t *testing.T) {
 					URL:            u,
 					Log:            test.NilLogger,
 					Publish:        true,
-					OutgoingTracks: []*webrtc.OutgoingTrack{track},
+					OutboundTracks: []*webrtc.OutboundTrack{track},
 				}
 
 				err = c.Initialize(context.Background())
@@ -1396,4 +1516,197 @@ func TestAPIProtocolKickNotFound(t *testing.T) {
 			}()
 		})
 	}
+}
+
+func internalUserRequest(t *testing.T, client *http.Client, method string, path string, body any, status int) map[string]any {
+	t.Helper()
+
+	var payload []byte
+	if body != nil {
+		var err error
+		payload, err = json.Marshal(body)
+		require.NoError(t, err)
+	}
+
+	req, err := http.NewRequest(method, "http://localhost:9997/v3/config/internal-users/"+path, bytes.NewReader(payload))
+	require.NoError(t, err)
+	res, err := client.Do(req)
+	require.NoError(t, err)
+	defer res.Body.Close()
+	require.Equal(t, status, res.StatusCode)
+
+	var out map[string]any
+	require.NoError(t, json.NewDecoder(res.Body).Decode(&out))
+	return out
+}
+
+func waitAPIAvailable(t *testing.T, client *http.Client) {
+	t.Helper()
+
+	require.Eventually(t, func() bool {
+		res, err := client.Get("http://localhost:9997/v3/config/internal-users/list")
+		if err != nil {
+			return false
+		}
+		res.Body.Close()
+		return true
+	}, 5*time.Second, 10*time.Millisecond)
+}
+
+func internalUserList(t *testing.T, client *http.Client) []any {
+	t.Helper()
+	return internalUserRequest(t, client, http.MethodGet, "list", nil, http.StatusOK)["items"].([]any)
+}
+
+func TestAPIConfigInternalUsers(t *testing.T) {
+	p, ok := newInstance(t, "api: yes\n")
+	require.True(t, ok)
+	defer p.Close()
+
+	tr := &http.Transport{}
+	defer tr.CloseIdleConnections()
+	client := &http.Client{Transport: tr}
+
+	items := internalUserList(t, client)
+	require.Len(t, items, 2)
+	first, second := items[0].(map[string]any), items[1].(map[string]any)
+	firstID, secondID := apiMapUUID(t, first, "id"), apiMapUUID(t, second, "id")
+	require.NotEqual(t, firstID, secondID)
+	require.Equal(t, float64(1), first["pos"])
+	require.Equal(t, float64(2), second["pos"])
+	require.Equal(t, "any", first["user"])
+	require.Equal(t, "any", second["user"])
+	require.NotContains(t, first, "conf")
+	require.Contains(t, first, "permissions")
+	require.Contains(t, first, "ips")
+
+	page := internalUserRequest(t, client, http.MethodGet, "list?itemsPerPage=1&page=1", nil, http.StatusOK)
+	require.Equal(t, float64(2), page["itemCount"])
+	require.Equal(t, float64(2), page["pageCount"])
+	require.Equal(t, secondID, apiMapUUID(t, page["items"].([]any)[0].(map[string]any), "id"))
+
+	user := map[string]any{"user": "alice", "pass": "secret", "permissions": []any{map[string]any{"action": "api"}}}
+	added := internalUserRequest(t, client, http.MethodPost, "add", user, http.StatusOK)
+	require.Equal(t, "ok", added["status"])
+	id := apiMapUUID(t, added, "id")
+	require.Equal(t, float64(3), internalUserRequest(t, client, http.MethodGet, "get/"+id.String(), nil, http.StatusOK)["pos"])
+	require.Equal(t, "<redacted>", internalUserRequest(t, client, http.MethodGet,
+		"get/"+id.String(), nil, http.StatusOK)["pass"])
+	items = internalUserList(t, client)
+	require.Equal(t, "<redacted>", items[2].(map[string]any)["pass"])
+	require.NotContains(t, items[2].(map[string]any), "conf")
+
+	internalUserRequest(t, client, http.MethodPatch, "patch/"+id.String(), map[string]any{
+		"user": "bob", "pass": "<redacted>",
+	}, http.StatusOK)
+	require.Equal(t, conf.Credential("secret"), p.conf.AuthInternalUsers[2].Pass)
+	_, authErr := p.authManager.Authenticate(&auth.Request{
+		Action:      conf.AuthActionAPI,
+		IP:          net.ParseIP("127.0.0.1"),
+		Credentials: &auth.Credentials{User: "bob", Pass: "secret"},
+	})
+	require.Nil(t, authErr)
+	require.Equal(t, "bob", internalUserRequest(t, client, http.MethodGet, "get/"+id.String(), nil,
+		http.StatusOK)["user"])
+
+	internalUserRequest(t, client, http.MethodPost, "replace/"+id.String(), map[string]any{
+		"user": "carol", "pass": "<redacted>", "permissions": []any{map[string]any{"action": "api"}},
+	}, http.StatusOK)
+	require.Equal(t, conf.Credential("secret"), p.conf.AuthInternalUsers[2].Pass)
+	require.Equal(t, "carol", internalUserRequest(t, client, http.MethodGet, "get/"+id.String(), nil,
+		http.StatusOK)["user"])
+
+	internalUserRequest(t, client, http.MethodPatch, "patch/"+id.String(), map[string]any{"user": ""}, http.StatusBadRequest)
+	require.Equal(t, "carol", internalUserRequest(t, client, http.MethodGet, "get/"+id.String(), nil,
+		http.StatusOK)["user"])
+	internalUserRequest(t, client, http.MethodPost, "add", map[string]any{"user": "bad", "pass": "<redacted>"},
+		http.StatusBadRequest)
+	internalUserRequest(t, client, http.MethodPost, "add", map[string]any{"unknown": true}, http.StatusBadRequest)
+	internalUserRequest(t, client, http.MethodPost, "replace/"+id.String(), map[string]any{
+		"user": "carol",
+	}, http.StatusOK)
+	require.Empty(t, p.conf.AuthInternalUsers[2].Pass)
+	require.Empty(t, p.conf.AuthInternalUsers[2].Permissions)
+	internalUserRequest(t, client, http.MethodPatch, "patch/"+id.String(), map[string]any{"unknown": true},
+		http.StatusBadRequest)
+	internalUserRequest(t, client, http.MethodGet, "get/invalid", nil, http.StatusBadRequest)
+	internalUserRequest(t, client, http.MethodGet, "get/"+uuid.NewString(), nil, http.StatusNotFound)
+	internalUserRequest(t, client, http.MethodPatch, "patch/"+uuid.NewString(), map[string]any{}, http.StatusNotFound)
+	internalUserRequest(t, client, http.MethodPost, "replace/"+uuid.NewString(), user, http.StatusNotFound)
+	internalUserRequest(t, client, http.MethodDelete, "delete/"+uuid.NewString(), nil, http.StatusNotFound)
+
+	internalUserRequest(t, client, http.MethodDelete, "delete/"+firstID.String(), nil, http.StatusOK)
+	items = internalUserList(t, client)
+	require.Len(t, items, 2)
+	require.Equal(t, secondID, apiMapUUID(t, items[0].(map[string]any), "id"))
+	require.Equal(t, id, apiMapUUID(t, items[1].(map[string]any), "id"))
+	internalUserRequest(t, client, http.MethodDelete, "delete/"+id.String(), nil, http.StatusOK)
+	internalUserRequest(t, client, http.MethodGet, "get/"+id.String(), nil, http.StatusNotFound)
+}
+
+func TestAPIConfigInternalUsersReconciliation(t *testing.T) {
+	p, ok := newInstance(t, "api: yes\n")
+	require.True(t, ok)
+	defer p.Close()
+
+	tr := &http.Transport{}
+	defer tr.CloseIdleConnections()
+	client := &http.Client{Transport: tr}
+
+	firstID := apiMapUUID(t, internalUserList(t, client)[0].(map[string]any), "id")
+	httpRequest(t, client, http.MethodPatch, "http://localhost:9997/v3/config/global/patch",
+		map[string]any{"writeQueueSize": 1024}, nil)
+	require.Eventually(t, func() bool {
+		p.confMutex.RLock()
+		defer p.confMutex.RUnlock()
+		return p.conf.WriteQueueSize == 1024
+	}, time.Second, 10*time.Millisecond)
+	waitAPIAvailable(t, client)
+	require.Equal(t, firstID, apiMapUUID(t, internalUserList(t, client)[0].(map[string]any), "id"))
+
+	httpRequest(t, client, http.MethodPatch, "http://localhost:9997/v3/config/global/patch",
+		map[string]any{"authInternalUsers": []any{map[string]any{
+			"user": "new", "pass": "password", "permissions": []any{map[string]any{"action": "api"}},
+		}}}, nil)
+
+	require.Eventually(t, func() bool {
+		p.confMutex.RLock()
+		defer p.confMutex.RUnlock()
+		return len(p.conf.AuthInternalUsers) == 1
+	}, time.Second, 10*time.Millisecond)
+
+	waitAPIAvailable(t, client)
+
+	items, err := p.APIConfigInternalUsersSnapshot()
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	require.NotEqual(t, firstID, items[0].ID)
+
+	_, authErr := p.authManager.Authenticate(&auth.Request{
+		Action:      conf.AuthActionAPI,
+		IP:          net.ParseIP("127.0.0.1"),
+		Credentials: &auth.Credentials{},
+	})
+	require.Error(t, authErr)
+}
+
+func TestAPIConfigInternalUsersDeprecatedCredentials(t *testing.T) {
+	p, ok := newInstance(t, "api: yes\n"+
+		"paths:\n"+
+		"  all_others:\n"+
+		"    readUser: testuser\n"+
+		"    readPass: testpass\n")
+	require.True(t, ok)
+	defer p.Close()
+
+	tr := &http.Transport{}
+	defer tr.CloseIdleConnections()
+	client := &http.Client{Transport: tr}
+
+	id := uuid.New().String()
+	user := map[string]any{"user": "new", "pass": "password"}
+	internalUserRequest(t, client, http.MethodPost, "add", user, http.StatusBadRequest)
+	internalUserRequest(t, client, http.MethodPatch, "patch/"+id, user, http.StatusNotFound)
+	internalUserRequest(t, client, http.MethodPost, "replace/"+id, user, http.StatusNotFound)
+	internalUserRequest(t, client, http.MethodDelete, "delete/"+id, nil, http.StatusNotFound)
 }

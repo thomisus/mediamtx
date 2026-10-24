@@ -16,10 +16,15 @@ import (
 	"github.com/bluenviron/gortsplib/v5/pkg/base"
 	"github.com/bluenviron/mediacommon/v2/pkg/formats/mp4/codecs"
 	"github.com/bluenviron/mediacommon/v2/pkg/formats/pmp4"
+
 	"github.com/bluenviron/mediamtx/internal/logger"
 )
 
-var rePathName = regexp.MustCompile(`^[0-9a-zA-Z_\-/\.]+$`)
+var (
+	rePathName              = regexp.MustCompile(`^[0-9a-zA-Z_\-/\.]+$`)
+	reSourcePlaceholderPort = regexp.MustCompile(`:\$G[0-9]+`)
+	reSourcePlaceholder     = regexp.MustCompile(`\$G[0-9]+`)
+)
 
 // IsValidPathName checks whether the path name is valid.
 func IsValidPathName(name string) error {
@@ -73,6 +78,38 @@ func checkRedirect(v string) error {
 	}
 
 	return nil
+}
+
+func validateURL(source string) (*url.URL, error) {
+	s := reSourcePlaceholderPort.ReplaceAllString(source, ":1935")
+	s = reSourcePlaceholder.ReplaceAllString(s, "abc")
+
+	u, err := url.Parse(s)
+	if err != nil {
+		return nil, fmt.Errorf("'%s' is not a valid URL", source)
+	}
+
+	if u.Scheme == "" || u.Host == "" {
+		return nil, fmt.Errorf("'%s' is not a valid URL", source)
+	}
+
+	if u.User != nil {
+		// An explicitly empty password ("user:@host") is valid and is required
+		// by some legacy devices, whose password cannot be set (#395).
+		// A missing password ("user@host") or a missing username (":pass@host")
+		// is most probably a typo and is rejected.
+		pass, passSet := u.User.Password()
+		user := u.User.Username()
+		switch {
+		case user != "" && !passSet:
+			return nil, fmt.Errorf("username was provided but password is missing; " +
+				"if the password is intentionally empty, use 'user:@host'")
+		case user == "" && pass != "":
+			return nil, fmt.Errorf("password was provided but username is missing")
+		}
+	}
+
+	return u, nil
 }
 
 func checkMP4MagicBytes(f io.ReadSeeker) error {
@@ -193,9 +230,13 @@ type Path struct {
 	UseAbsoluteTimestamp       bool     `json:"useAbsoluteTimestamp"`
 
 	// Always available
-	AlwaysAvailable       bool                   `json:"alwaysAvailable"`
-	AlwaysAvailableTracks []AlwaysAvailableTrack `json:"alwaysAvailableTracks"`
-	AlwaysAvailableFile   string                 `json:"alwaysAvailableFile"`
+	AlwaysAvailable         bool                   `json:"alwaysAvailable"`
+	AlwaysAvailableTracks   []AlwaysAvailableTrack `json:"alwaysAvailableTracks"`
+	AlwaysAvailableFile     string                 `json:"alwaysAvailableFile"`
+	AlwaysAvailableRecorded bool                   `json:"alwaysAvailableRecorded"`
+
+	// Forward
+	Forward Forward `json:"forward"`
 
 	// Record
 	Record                bool         `json:"record"`
@@ -228,6 +269,7 @@ type Path struct {
 	SourceAnyPortEnable    *bool          `json:"sourceAnyPortEnable,omitempty" deprecated:"true"`
 	RTSPRangeType          RTSPRangeType  `json:"rtspRangeType"`
 	RTSPRangeStart         string         `json:"rtspRangeStart"`
+	RTSPScale              string         `json:"rtspScale"`
 	RTSPUDPReadBufferSize  *uint          `json:"rtspUDPReadBufferSize,omitempty" deprecated:"true"`
 	RTSPUDPSourcePortRange []uint         `json:"rtspUDPSourcePortRange"`
 
@@ -237,6 +279,9 @@ type Path struct {
 	// RTP source
 	RTPSDP               string `json:"rtpSDP"`
 	RTPUDPReadBufferSize *uint  `json:"rtpUDPReadBufferSize,omitempty" deprecated:"true"`
+
+	// MoQ source
+	MoQTransport MoQTransport `json:"moqTransport"`
 
 	// WHEP source
 	WHEPBearerToken        string   `json:"whepBearerToken"`
@@ -284,16 +329,23 @@ type Path struct {
 	RPICameraBitrate               uint      `json:"rpiCameraBitrate"`
 	RPICameraProfile               *string   `json:"rpiCameraProfile,omitempty" deprecated:"true"`
 	RPICameraLevel                 *string   `json:"rpiCameraLevel,omitempty" deprecated:"true"`
-	RPICameraHardwareH264Profile   string    `json:"rpiCameraHardwareH264Profile"`
-	RPICameraHardwareH264Level     string    `json:"rpiCameraHardwareH264Level"`
-	RPICameraSoftwareH264Profile   string    `json:"rpiCameraSoftwareH264Profile"`
-	RPICameraSoftwareH264Level     string    `json:"rpiCameraSoftwareH264Level"`
+	RPICameraHardwareH264Profile   *string   `json:"rpiCameraHardwareH264Profile,omitempty" deprecated:"true"`
+	RPICameraHardwareH264Level     *string   `json:"rpiCameraHardwareH264Level,omitempty" deprecated:"true"`
+	RPICameraSoftwareH264Profile   *string   `json:"rpiCameraSoftwareH264Profile,omitempty" deprecated:"true"`
+	RPICameraSoftwareH264Level     *string   `json:"rpiCameraSoftwareH264Level,omitempty" deprecated:"true"`
+	RPICameraH264Profile           string    `json:"rpiCameraH264Profile"`
+	RPICameraH264Level             string    `json:"rpiCameraH264Level"`
 	RPICameraJPEGQuality           *uint     `json:"rpiCameraJPEGQuality,omitempty" deprecated:"true"`
 	RPICameraMJPEGQuality          uint      `json:"rpiCameraMJPEGQuality"`
 	RPICameraPrimaryName           string    `json:"-"` // filled by Validate()
+	RPICameraSecondaryCodec        string    `json:"-"` // filled by Validate()
 	RPICameraSecondaryWidth        uint      `json:"-"` // filled by Validate()
 	RPICameraSecondaryHeight       uint      `json:"-"` // filled by Validate()
 	RPICameraSecondaryFPS          float64   `json:"-"` // filled by Validate()
+	RPICameraSecondaryIDRPeriod    uint      `json:"-"` // filled by Validate()
+	RPICameraSecondaryBitrate      uint      `json:"-"` // filled by Validate()
+	RPICameraSecondaryH264Profile  string    `json:"-"` // filled by Validate()
+	RPICameraSecondaryH264Level    string    `json:"-"` // filled by Validate()
 	RPICameraSecondaryMJPEGQuality uint      `json:"-"` // filled by Validate()
 
 	// Hooks
@@ -304,9 +356,15 @@ type Path struct {
 	RunOnDemandStartTimeout    Duration `json:"runOnDemandStartTimeout"`
 	RunOnDemandCloseAfter      Duration `json:"runOnDemandCloseAfter"`
 	RunOnUnDemand              string   `json:"runOnUnDemand"`
-	RunOnReady                 string   `json:"runOnReady"`
-	RunOnReadyRestart          bool     `json:"runOnReadyRestart"`
-	RunOnNotReady              string   `json:"runOnNotReady"`
+	RunOnAvailable             string   `json:"runOnAvailable"`
+	RunOnAvailableRestart      bool     `json:"runOnAvailableRestart"`
+	RunOnUnavailable           string   `json:"runOnUnavailable"`
+	RunOnReady                 *string  `json:"runOnReady,omitempty" deprecated:"true"`
+	RunOnReadyRestart          *bool    `json:"runOnReadyRestart,omitempty" deprecated:"true"`
+	RunOnNotReady              *string  `json:"runOnNotReady,omitempty" deprecated:"true"`
+	RunOnOnline                string   `json:"runOnOnline"`
+	RunOnOnlineRestart         bool     `json:"runOnOnlineRestart"`
+	RunOnOffline               string   `json:"runOnOffline"`
 	RunOnRead                  string   `json:"runOnRead"`
 	RunOnReadRestart           bool     `json:"runOnReadRestart"`
 	RunOnUnread                string   `json:"runOnUnread"`
@@ -320,8 +378,11 @@ func (pconf *Path) setDefaults() {
 	pconf.SourceOnDemandStartTimeout = 10 * Duration(time.Second)
 	pconf.SourceOnDemandCloseAfter = 10 * Duration(time.Second)
 
+	// Always available
+	pconf.AlwaysAvailableRecorded = true
+
 	// Record
-	pconf.RecordPath = "./recordings/%path/%Y-%m-%d_%H-%M-%S-%f"
+	pconf.RecordPath = "./recordings/%path/%Y-%m-%d_%H-%M-%S-%f_%z"
 	pconf.RecordFormat = RecordFormatFMP4
 	pconf.RecordPartDuration = Duration(1 * time.Second)
 	pconf.RecordMaxPartSize = 50 * 1024 * 1024
@@ -332,7 +393,10 @@ func (pconf *Path) setDefaults() {
 	pconf.OverridePublisher = true
 
 	// RTSP source
-	pconf.RTSPUDPSourcePortRange = []uint{10000, 65535}
+	pconf.RTSPUDPSourcePortRange = []uint{32768, 60999}
+
+	// MoQ source
+	pconf.MoQTransport = MoQTransportQUIC
 
 	// WHEP source
 	pconf.WHEPSTUNGatherTimeout = Duration(5 * time.Second)
@@ -358,10 +422,8 @@ func (pconf *Path) setDefaults() {
 	pconf.RPICameraCodec = "auto"
 	pconf.RPICameraIDRPeriod = 60
 	pconf.RPICameraBitrate = 5000000
-	pconf.RPICameraHardwareH264Profile = "main"
-	pconf.RPICameraHardwareH264Level = "4.1"
-	pconf.RPICameraSoftwareH264Profile = "baseline"
-	pconf.RPICameraSoftwareH264Level = "4.1"
+	pconf.RPICameraH264Profile = "auto"
+	pconf.RPICameraH264Level = "4.1"
 	pconf.RPICameraMJPEGQuality = 60
 
 	// Hooks
@@ -385,7 +447,6 @@ func (pconf Path) Clone() *Path {
 func (pconf *Path) validate(
 	conf *Conf,
 	name string,
-	deprecatedCredentialsMode bool,
 	l logger.Writer,
 ) error {
 	pconf.Name = name
@@ -441,9 +502,9 @@ func (pconf *Path) validate(
 		strings.HasPrefix(pconf.Source, "rtsps+http://") ||
 		strings.HasPrefix(pconf.Source, "rtsp+ws://") ||
 		strings.HasPrefix(pconf.Source, "rtsps+ws://"):
-		_, err := url.Parse(pconf.Source)
+		_, err := validateURL(pconf.Source)
 		if err != nil {
-			return fmt.Errorf("'%s' is not a valid URL", pconf.Source)
+			return err
 		}
 
 		if pconf.SourceProtocol != nil {
@@ -458,54 +519,51 @@ func (pconf *Path) validate(
 
 	case strings.HasPrefix(pconf.Source, "rtmp://") ||
 		strings.HasPrefix(pconf.Source, "rtmps://"):
-		u, err := url.Parse(pconf.Source)
+		_, err := validateURL(pconf.Source)
 		if err != nil {
-			return fmt.Errorf("'%s' is not a valid URL", pconf.Source)
-		}
-
-		if u.User != nil {
-			pass, _ := u.User.Password()
-			user := u.User.Username()
-			if user != "" && pass == "" ||
-				user == "" && pass != "" {
-				return fmt.Errorf("username and password must be both provided")
-			}
+			return err
 		}
 
 	case strings.HasPrefix(pconf.Source, "http://") ||
 		strings.HasPrefix(pconf.Source, "https://"):
-		u, err := url.Parse(pconf.Source)
+		_, err := validateURL(pconf.Source)
 		if err != nil {
-			return fmt.Errorf("'%s' is not a valid URL", pconf.Source)
-		}
-
-		if u.User != nil {
-			pass, _ := u.User.Password()
-			user := u.User.Username()
-			if user != "" && pass == "" ||
-				user == "" && pass != "" {
-				return fmt.Errorf("username and password must be both provided")
-			}
+			return err
 		}
 
 	case strings.HasPrefix(pconf.Source, "udp://"):
-		_, _, err := net.SplitHostPort(pconf.Source[len("udp://"):])
+		u, err := validateURL(pconf.Source)
 		if err != nil {
-			return fmt.Errorf("'%s' is not a valid UDP+MPEGTS URL", pconf.Source)
+			return err
+		}
+
+		_, _, err = net.SplitHostPort(u.Host)
+		if err != nil {
+			return fmt.Errorf("'%s' is missing the port", pconf.Source)
 		}
 
 	case strings.HasPrefix(pconf.Source, "udp+mpegts://"):
-		_, _, err := net.SplitHostPort(pconf.Source[len("udp+mpegts://"):])
+		u, err := validateURL(pconf.Source)
 		if err != nil {
-			return fmt.Errorf("'%s' is not a valid UDP+MPEGTS URL", pconf.Source)
+			return err
+		}
+
+		_, _, err = net.SplitHostPort(u.Host)
+		if err != nil {
+			return fmt.Errorf("'%s' is missing the port", pconf.Source)
 		}
 
 	case strings.HasPrefix(pconf.Source, "unix+mpegts://"):
 
 	case strings.HasPrefix(pconf.Source, "udp+rtp://"):
-		_, _, err := net.SplitHostPort(pconf.Source[len("udp+rtp://"):])
+		u, err := validateURL(pconf.Source)
 		if err != nil {
-			return fmt.Errorf("'%s' is not a valid UDP+RTP URL", pconf.Source)
+			return err
+		}
+
+		_, _, err = net.SplitHostPort(u.Host)
+		if err != nil {
+			return fmt.Errorf("'%s' is missing the port", pconf.Source)
 		}
 
 		if pconf.RTPSDP == "" {
@@ -514,21 +572,28 @@ func (pconf *Path) validate(
 
 	case strings.HasPrefix(pconf.Source, "unix+rtp://"):
 		l.Log(logger.Warn, "source 'unix+rtp' is deprecated due to intrinsic instability, use 'udp+rtp' instead")
+
 		if pconf.RTPSDP == "" {
 			return fmt.Errorf("`rtpSDP` was not provided")
 		}
 
 	case strings.HasPrefix(pconf.Source, "srt://"):
-		_, err := url.Parse(pconf.Source)
+		_, err := validateURL(pconf.Source)
 		if err != nil {
-			return fmt.Errorf("'%s' is not a valid URL", pconf.Source)
+			return err
+		}
+
+	case strings.HasPrefix(pconf.Source, "moqt://"):
+		_, err := validateURL(pconf.Source)
+		if err != nil {
+			return err
 		}
 
 	case strings.HasPrefix(pconf.Source, "whep://") ||
 		strings.HasPrefix(pconf.Source, "wheps://"):
-		_, err := url.Parse(pconf.Source)
+		_, err := validateURL(pconf.Source)
 		if err != nil {
-			return fmt.Errorf("'%s' is not a valid URL", pconf.Source)
+			return err
 		}
 
 	case pconf.Source == "redirect":
@@ -542,13 +607,23 @@ func (pconf *Path) validate(
 		}
 
 	case pconf.Source == "rpiCamera":
-
 		if pconf.RPICameraWidth == 0 {
 			return fmt.Errorf("invalid 'rpiCameraWidth' value")
 		}
 
 		if pconf.RPICameraHeight == 0 {
 			return fmt.Errorf("invalid 'rpiCameraHeight' value")
+		}
+
+		if pconf.RPICameraCodec == "mjpeg" ||
+			(pconf.RPICameraSecondary && pconf.RPICameraCodec == "auto") {
+			if pconf.RPICameraWidth >= 2048 || (pconf.RPICameraWidth%8) != 0 {
+				return fmt.Errorf("'rpiCameraWidth' must be a multiple of 8 and less than 2048 when using MJPEG")
+			}
+
+			if pconf.RPICameraHeight >= 2048 || (pconf.RPICameraHeight%8) != 0 {
+				return fmt.Errorf("'rpiCameraHeight' must be a multiple of 8 and less than 2048 when using MJPEG")
+			}
 		}
 
 		switch pconf.RPICameraExposure {
@@ -600,37 +675,69 @@ func (pconf *Path) validate(
 		if pconf.RPICameraProfile != nil {
 			l.Log(logger.Warn, "parameter 'rpiCameraProfile' is deprecated"+
 				" and has been replaced with 'rpiCameraHardwareH264Profile'")
-			pconf.RPICameraHardwareH264Profile = *pconf.RPICameraProfile
+			pconf.RPICameraHardwareH264Profile = pconf.RPICameraProfile
 		}
 
 		if pconf.RPICameraLevel != nil {
 			l.Log(logger.Warn, "parameter 'rpiCameraLevel' is deprecated"+
 				" and has been replaced with 'rpiCameraHardwareH264Level'")
-			pconf.RPICameraHardwareH264Level = *pconf.RPICameraLevel
+			pconf.RPICameraHardwareH264Level = pconf.RPICameraLevel
 		}
 
-		switch pconf.RPICameraHardwareH264Profile {
-		case "baseline", "main", "high":
+		if pconf.RPICameraHardwareH264Profile != nil {
+			l.Log(logger.Warn, "parameter 'rpiCameraHardwareH264Profile' is deprecated"+
+				" and has been replaced with 'rpiCameraH264Profile'")
+
+			switch *pconf.RPICameraHardwareH264Profile {
+			case "baseline", "main", "high":
+			default:
+				return fmt.Errorf("invalid 'rpiCameraHardwareH264Profile' value")
+			}
+		}
+
+		if pconf.RPICameraHardwareH264Level != nil {
+			l.Log(logger.Warn, "parameter 'rpiCameraHardwareH264Level' is deprecated"+
+				" and has been replaced with 'rpiCameraH264Level'")
+
+			switch *pconf.RPICameraHardwareH264Level {
+			case "4.0", "4.1", "4.2":
+			default:
+				return fmt.Errorf("invalid 'rpiCameraHardwareH264Level' value")
+			}
+		}
+
+		if pconf.RPICameraSoftwareH264Profile != nil {
+			l.Log(logger.Warn, "parameter 'rpiCameraSoftwareH264Profile' is deprecated"+
+				" and has been replaced with 'rpiCameraH264Profile'")
+
+			switch *pconf.RPICameraSoftwareH264Profile {
+			case "baseline", "main", "high":
+			default:
+				return fmt.Errorf("invalid 'rpiCameraSoftwareH264Profile' value")
+			}
+		}
+
+		if pconf.RPICameraSoftwareH264Level != nil {
+			l.Log(logger.Warn, "parameter 'rpiCameraSoftwareH264Level' is deprecated"+
+				" and has been replaced with 'rpiCameraH264Level'")
+
+			switch *pconf.RPICameraSoftwareH264Level {
+			case "4.0", "4.1", "4.2":
+			default:
+				return fmt.Errorf("invalid 'rpiCameraSoftwareH264Level' value")
+			}
+		}
+
+		switch pconf.RPICameraH264Profile {
+		case "auto", "baseline", "main", "high":
 		default:
-			return fmt.Errorf("invalid 'rpiCameraHardwareH264Profile' value")
+			return fmt.Errorf("invalid 'rpiCameraH264Profile' value")
 		}
 
-		switch pconf.RPICameraHardwareH264Level {
+		switch pconf.RPICameraH264Level {
 		case "4.0", "4.1", "4.2":
 		default:
-			return fmt.Errorf("invalid 'rpiCameraHardwareH264Level' value")
-		}
-
-		switch pconf.RPICameraSoftwareH264Profile {
-		case "baseline", "main", "high":
-		default:
-			return fmt.Errorf("invalid 'rpiCameraSoftwareH264Profile' value")
-		}
-
-		switch pconf.RPICameraSoftwareH264Level {
-		case "4.0", "4.1", "4.2":
-		default:
-			return fmt.Errorf("invalid 'rpiCameraSoftwareH264Level' value")
+			return fmt.Errorf("invalid 'rpiCameraH264Level' value")
 		}
 
 		if pconf.RPICameraJPEGQuality != nil {
@@ -639,13 +746,13 @@ func (pconf *Path) validate(
 			pconf.RPICameraMJPEGQuality = *pconf.RPICameraJPEGQuality
 		}
 
-		if !pconf.RPICameraSecondary {
-			switch pconf.RPICameraCodec {
-			case "auto", "hardwareH264", "softwareH264":
-			default:
-				return fmt.Errorf("supported codecs for a primary RPI Camera stream are auto, hardwareH264, softwareH264")
-			}
+		switch pconf.RPICameraCodec {
+		case "auto", "hardwareH264", "softwareH264", "mjpeg":
+		default:
+			return fmt.Errorf("supported codecs for a RPI Camera stream are auto, hardwareH264, softwareH264, mjpeg")
+		}
 
+		if !pconf.RPICameraSecondary {
 			for otherName, otherPath := range conf.Paths {
 				if otherPath != pconf &&
 					otherPath != nil &&
@@ -657,12 +764,6 @@ func (pconf *Path) validate(
 				}
 			}
 		} else {
-			switch pconf.RPICameraCodec {
-			case "auto", "mjpeg":
-			default:
-				return fmt.Errorf("supported codecs for a secondary RPI Camera stream are auto, mjpeg")
-			}
-
 			var primaryName string
 			var primary *Path
 
@@ -691,6 +792,11 @@ func (pconf *Path) validate(
 			primary.RPICameraSecondaryHeight = pconf.RPICameraHeight
 			primary.RPICameraSecondaryFPS = pconf.RPICameraFPS
 			primary.RPICameraSecondaryMJPEGQuality = pconf.RPICameraMJPEGQuality
+			primary.RPICameraSecondaryCodec = pconf.RPICameraCodec
+			primary.RPICameraSecondaryIDRPeriod = pconf.RPICameraIDRPeriod
+			primary.RPICameraSecondaryBitrate = pconf.RPICameraBitrate
+			primary.RPICameraSecondaryH264Profile = pconf.RPICameraH264Profile
+			primary.RPICameraSecondaryH264Level = pconf.RPICameraH264Level
 		}
 
 	default:
@@ -703,7 +809,7 @@ func (pconf *Path) validate(
 		}
 	} else {
 		if pconf.Source != "publisher" && pconf.Source != "redirect" && pconf.Regexp != nil {
-			return fmt.Errorf("a path with a regular expression (or path 'all') and a static source" +
+			return fmt.Errorf("a path with a regular expression (or path 'all_others') and a static source" +
 				" must have 'sourceOnDemand' set to true")
 		}
 	}
@@ -715,9 +821,14 @@ func (pconf *Path) validate(
 		}
 	}
 
+	err := pconf.Forward.Validate()
+	if err != nil {
+		return fmt.Errorf("invalid 'forward': %w", err)
+	}
+
 	if pconf.Fallback != nil {
 		l.Log(logger.Warn, "the 'fallback' feature is deprecated, use 'alwaysAvailable' instead")
-		err := checkRedirect(*pconf.Fallback)
+		err = checkRedirect(*pconf.Fallback)
 		if err != nil {
 			return err
 		}
@@ -727,7 +838,7 @@ func (pconf *Path) validate(
 
 	if pconf.AlwaysAvailable {
 		if pconf.Regexp != nil {
-			return fmt.Errorf("'alwaysAvailable' cannot be used in a path with a regular expression (or path 'all')")
+			return fmt.Errorf("'alwaysAvailable' cannot be used in a path with a regular expression (or path 'all_others')")
 		}
 
 		if pconf.SourceOnDemand {
@@ -743,7 +854,7 @@ func (pconf *Path) validate(
 				return fmt.Errorf("'alwaysAvailableFile' and 'alwaysAvailableTracks' cannot be used together")
 			}
 
-			err := checkAlwaysAvailableFile(pconf.AlwaysAvailableFile)
+			err = checkAlwaysAvailableFile(pconf.AlwaysAvailableFile)
 			if err != nil {
 				return fmt.Errorf("invalid 'alwaysAvailableFile': %w", err)
 			}
@@ -780,6 +891,13 @@ func (pconf *Path) validate(
 		return fmt.Errorf("'recordPath' must contain %%f")
 	}
 
+	if pconf.Record &&
+		!strings.Contains(pconf.RecordPath, "%z") &&
+		!strings.Contains(pconf.RecordPath, "%s") {
+		l.Log(logger.Warn, "path '%s': recordPath without '%%z' causes segments to be overwritten "+
+			"or placed at wrong time during daylight saving time switches", name)
+	}
+
 	if pconf.RecordSegmentDuration > Duration(24*time.Hour) { // avoid overflowing DurationV0 of mvhd
 		return fmt.Errorf("maximum segment duration is 1 day")
 	}
@@ -790,7 +908,7 @@ func (pconf *Path) validate(
 
 	// Authentication (deprecated)
 
-	if deprecatedCredentialsMode {
+	if conf.HasDeprecatedCredentials {
 		func() {
 			var user Credential = "any"
 			if pconf.PublishUser != nil && *pconf.PublishUser != "" {
@@ -812,7 +930,7 @@ func (pconf *Path) validate(
 				pathName = "~^.*$"
 			}
 
-			conf.AuthInternalUsers = append(conf.AuthInternalUsers, AuthInternalUser{
+			conf.AuthInternalUsersComputed = append(conf.AuthInternalUsersComputed, AuthInternalUser{
 				User: user,
 				Pass: pass,
 				IPs:  ips,
@@ -844,14 +962,20 @@ func (pconf *Path) validate(
 				pathName = "~^.*$"
 			}
 
-			conf.AuthInternalUsers = append(conf.AuthInternalUsers, AuthInternalUser{
+			conf.AuthInternalUsersComputed = append(conf.AuthInternalUsersComputed, AuthInternalUser{
 				User: user,
 				Pass: pass,
 				IPs:  ips,
-				Permissions: []AuthInternalUserPermission{{
-					Action: AuthActionRead,
-					Path:   pathName,
-				}},
+				Permissions: []AuthInternalUserPermission{
+					{
+						Action: AuthActionRead,
+						Path:   pathName,
+					},
+					{
+						Action: AuthActionPlayback,
+						Path:   pathName,
+					},
+				},
 			})
 		}()
 	}
@@ -859,8 +983,23 @@ func (pconf *Path) validate(
 	// Hooks
 
 	if pconf.RunOnInit != "" && pconf.Regexp != nil {
-		return fmt.Errorf("a path with a regular expression (or path 'all')" +
+		return fmt.Errorf("a path with a regular expression (or path 'all_others')" +
 			" does not support option 'runOnInit'; use another path")
+	}
+
+	if pconf.RunOnReady != nil {
+		l.Log(logger.Warn, "parameter 'runOnReady' is deprecated and has been replaced with 'runOnAvailable'")
+		pconf.RunOnAvailable = *pconf.RunOnReady
+	}
+
+	if pconf.RunOnReadyRestart != nil {
+		l.Log(logger.Warn, "parameter 'runOnReadyRestart' is deprecated and has been replaced with 'runOnAvailableRestart'")
+		pconf.RunOnAvailableRestart = *pconf.RunOnReadyRestart
+	}
+
+	if pconf.RunOnNotReady != nil {
+		l.Log(logger.Warn, "parameter 'runOnNotReady' is deprecated and has been replaced with 'runOnUnavailable'")
+		pconf.RunOnUnavailable = *pconf.RunOnNotReady
 	}
 
 	if (pconf.RunOnDemand != "" || pconf.RunOnUnDemand != "") && pconf.Source != "publisher" {

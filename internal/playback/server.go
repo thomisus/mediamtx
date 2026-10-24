@@ -2,22 +2,29 @@
 package playback
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"net/http"
 	"sync"
 	"time"
 
+	"github.com/gin-gonic/gin"
+
 	"github.com/bluenviron/mediamtx/internal/auth"
 	"github.com/bluenviron/mediamtx/internal/conf"
 	"github.com/bluenviron/mediamtx/internal/defs"
 	"github.com/bluenviron/mediamtx/internal/logger"
 	"github.com/bluenviron/mediamtx/internal/protocols/httpp"
-	"github.com/gin-gonic/gin"
 )
 
 type serverAuthManager interface {
-	Authenticate(req *auth.Request) (string, *auth.Error)
+	Authenticate(req *auth.Request) (*auth.Result, *auth.Error)
+}
+
+type serverParent interface {
+	logger.Writer
+	OnFatalError(context.Context, error)
 }
 
 // Server is the playback server.
@@ -33,7 +40,7 @@ type Server struct {
 	WriteTimeout   conf.Duration
 	PathConfs      map[string]*conf.Path
 	AuthManager    serverAuthManager
-	Parent         logger.Writer
+	Parent         serverParent
 
 	httpServer *httpp.Server
 	mutex      sync.RWMutex
@@ -43,7 +50,6 @@ type Server struct {
 func (s *Server) Initialize() error {
 	router := gin.New()
 	router.SetTrustedProxies(s.TrustedProxies.ToTrustedProxies()) //nolint:errcheck
-
 	router.Use(s.middlewarePreflightRequests)
 
 	router.GET("/list", s.onList)
@@ -61,13 +67,14 @@ func (s *Server) Initialize() error {
 		ServerKey:         s.ServerKey,
 		Handler:           router,
 		Parent:            s,
+		OnListenError:     s.onListenError,
 	}
 	err := s.httpServer.Initialize()
 	if err != nil {
 		return err
 	}
 
-	str := "listener opened on " + s.Address
+	str := "started with listener on " + s.Address
 	if !s.Encryption {
 		str += " (TCP/HTTP)"
 	} else {
@@ -80,8 +87,16 @@ func (s *Server) Initialize() error {
 
 // Close closes Server.
 func (s *Server) Close() {
-	s.Log(logger.Info, "listener is closing")
+	s.Log(logger.Info, "closing")
+
 	s.httpServer.Close()
+
+	s.Log(logger.Debug, "closed")
+}
+
+func (s *Server) onListenError(ctx context.Context, err error) {
+	s.Log(logger.Error, "%s", err)
+	s.Parent.OnFatalError(ctx, err)
 }
 
 // Log implements logger.Writer.
@@ -133,12 +148,16 @@ func (s *Server) middlewarePreflightRequests(ctx *gin.Context) {
 }
 
 func (s *Server) doAuth(ctx *gin.Context, pathName string) bool {
+	creds := &auth.Credentials{}
+	creds.FromHTTP(ctx.Request)
+
 	req := &auth.Request{
-		Action:      conf.AuthActionPlayback,
-		Path:        pathName,
-		Query:       ctx.Request.URL.RawQuery,
-		Credentials: httpp.Credentials(ctx.Request),
-		IP:          net.ParseIP(ctx.ClientIP()),
+		Action:               conf.AuthActionPlayback,
+		Path:                 pathName,
+		Query:                ctx.Request.URL.RawQuery,
+		Credentials:          creds,
+		IP:                   net.ParseIP(ctx.ClientIP()),
+		EnableAskCredentials: true,
 	}
 
 	_, err := s.AuthManager.Authenticate(req)
@@ -149,11 +168,10 @@ func (s *Server) doAuth(ctx *gin.Context, pathName string) bool {
 			return false
 		}
 
-		s.Log(logger.Info, "connection %v failed to authenticate: %v",
-			httpp.RemoteAddr(ctx), err.Wrapped)
-
-		// wait some seconds to delay brute force attacks
-		<-time.After(auth.PauseAfterError)
+		auth.LogAndDelayError(&logger.InlineWriter{
+			Parent: s,
+			Prefix: fmt.Sprintf("[conn %v]", httpp.RemoteAddr(ctx)),
+		}, err)
 
 		s.writeErrorNoLog(ctx, http.StatusUnauthorized, fmt.Errorf("authentication error"))
 		return false

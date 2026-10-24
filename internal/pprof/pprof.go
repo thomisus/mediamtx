@@ -2,6 +2,7 @@
 package pprof //nolint:revive
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"net/http"
@@ -18,11 +19,12 @@ import (
 )
 
 type pprofAuthManager interface {
-	Authenticate(req *auth.Request) (string, *auth.Error)
+	Authenticate(req *auth.Request) (*auth.Result, *auth.Error)
 }
 
 type pprofParent interface {
 	logger.Writer
+	OnFatalError(context.Context, error)
 }
 
 // PPROF is a pprof exporter.
@@ -46,7 +48,6 @@ type PPROF struct {
 func (pp *PPROF) Initialize() error {
 	router := gin.New()
 	router.SetTrustedProxies(pp.TrustedProxies.ToTrustedProxies()) //nolint:errcheck
-
 	router.Use(pp.middlewarePreflightRequests)
 	router.Use(pp.middlewareAuth)
 
@@ -64,13 +65,14 @@ func (pp *PPROF) Initialize() error {
 		ServerKey:         pp.ServerKey,
 		Handler:           router,
 		Parent:            pp,
+		OnListenError:     pp.onListenError,
 	}
 	err := pp.httpServer.Initialize()
 	if err != nil {
 		return err
 	}
 
-	str := "listener opened on " + pp.Address
+	str := "started with listener on " + pp.Address
 	if !pp.Encryption {
 		str += " (TCP/HTTP)"
 	} else {
@@ -83,8 +85,16 @@ func (pp *PPROF) Initialize() error {
 
 // Close closes PPROF.
 func (pp *PPROF) Close() {
-	pp.Log(logger.Info, "listener is closing")
+	pp.Log(logger.Info, "closing")
+
 	pp.httpServer.Close()
+
+	pp.Log(logger.Debug, "closed")
+}
+
+func (pp *PPROF) onListenError(ctx context.Context, err error) {
+	pp.Log(logger.Error, "%s", err)
+	pp.Parent.OnFatalError(ctx, err)
 }
 
 // Log implements logger.Writer.
@@ -110,11 +120,15 @@ func (pp *PPROF) writeErrorNoLog(ctx *gin.Context, status int, err error) {
 }
 
 func (pp *PPROF) middlewareAuth(ctx *gin.Context) {
+	creds := &auth.Credentials{}
+	creds.FromHTTP(ctx.Request)
+
 	req := &auth.Request{
-		Action:      conf.AuthActionPprof,
-		Query:       ctx.Request.URL.RawQuery,
-		Credentials: httpp.Credentials(ctx.Request),
-		IP:          net.ParseIP(ctx.ClientIP()),
+		Action:               conf.AuthActionPprof,
+		Query:                ctx.Request.URL.RawQuery,
+		Credentials:          creds,
+		IP:                   net.ParseIP(ctx.ClientIP()),
+		EnableAskCredentials: true,
 	}
 
 	_, err := pp.AuthManager.Authenticate(req)
@@ -125,10 +139,10 @@ func (pp *PPROF) middlewareAuth(ctx *gin.Context) {
 			return
 		}
 
-		pp.Log(logger.Info, "connection %v failed to authenticate: %v", httpp.RemoteAddr(ctx), err.Wrapped)
-
-		// wait some seconds to delay brute force attacks
-		<-time.After(auth.PauseAfterError)
+		auth.LogAndDelayError(&logger.InlineWriter{
+			Parent: pp,
+			Prefix: fmt.Sprintf("[conn %v]", httpp.RemoteAddr(ctx)),
+		}, err)
 
 		pp.writeErrorNoLog(ctx, http.StatusUnauthorized, fmt.Errorf("authentication error"))
 		return

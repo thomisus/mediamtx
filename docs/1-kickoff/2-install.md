@@ -3,7 +3,7 @@
 There are several installation methods available:
 
 - [Standalone binary](#standalone-binary): use this if you are running Windows, macOS or you just want to try out _MediaMTX_.
-- [Docker image](#docker-image): use this if you want to run _MediaMTX_ in an isolated and deterministic way. This is recommended for production environments.
+- [Docker container](#docker-container): use this if you want to run _MediaMTX_ in an isolated and deterministic way. This is recommended for production environments.
 - [Arch Linux package](#arch-linux-package): use this if you are running Arch Linux.
 - [FreeBSD package](#freebsd-package): use this if you are running FreeBSD.
 - [OpenWrt binary](#openwrt-binary): use this if you are running OpenWrt.
@@ -18,7 +18,7 @@ There are several installation methods available:
    ./mediamtx
    ```
 
-## Docker image
+## Docker container
 
 Download and launch the `bluenviron/mediamtx:1` image with the following environment variables and ports:
 
@@ -30,8 +30,11 @@ docker run --rm -it \
 -p 1935:1935 \
 -p 8888:8888 \
 -p 8889:8889 \
+-p 8892:8892 \
 -p 8890:8890/udp \
 -p 8189:8189/udp \
+-p 8892:8892/udp \
+-p 8893:8893/udp \
 bluenviron/mediamtx:1
 ```
 
@@ -56,14 +59,16 @@ The `1` tag corresponds to the latest `1.x.x` release, that should guarantee bac
 
 The base image does not contain any utility, in order to minimize size and frequency of updates. If you need additional software (like curl, wget, GStreamer), you can build a custom image by creating a file named `Dockerfile` with this content:
 
-```Dockerfile
+```dockerfile
 FROM bluenviron/mediamtx:1 AS mediamtx
+
+# pick any Linux-based operating system you want.
 FROM ubuntu:24.04
 
 COPY --from=mediamtx /mediamtx /
 COPY --from=mediamtx /mediamtx.yml /
 
-# add anything you need.
+# add anything you need, GStreamer is just an example.
 RUN apt update && apt install -y \
    gstreamer1.0-tools
 
@@ -75,8 +80,6 @@ And then build it:
 ```sh
 docker build . -t my-mediamtx
 ```
-
-This custom image is using the official _MediaMTX_ image as a base stage, and then adds a Linux-based operating system on top of it. You can use any Linux distribution or version you like, since _MediaMTX_ binaries are compatible with anything.
 
 ## Arch Linux package
 
@@ -101,4 +104,4 @@ pkg install mediamtx
 
 If the architecture of the OpenWrt device is amd64, armv6, armv7 or arm64, use the [standalone binary method](#standalone-binary) and download a Linux binary that corresponds to your architecture.
 
-Otherwise, [compile the server from source](../6-misc/1-compile.md).
+Otherwise, [compile the server from source](../7-misc/1-compile.md).

@@ -1,4 +1,4 @@
-package whip
+package whip_test
 
 import (
 	"context"
@@ -10,11 +10,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bluenviron/mediamtx/internal/protocols/webrtc"
-	"github.com/bluenviron/mediamtx/internal/test"
 	"github.com/pion/rtp"
 	pwebrtc "github.com/pion/webrtc/v4"
 	"github.com/stretchr/testify/require"
+
+	"github.com/bluenviron/mediamtx/internal/protocols/webrtc"
+	"github.com/bluenviron/mediamtx/internal/protocols/whip"
+	"github.com/bluenviron/mediamtx/internal/test"
 )
 
 func whipOffer(body []byte) *pwebrtc.SessionDescription {
@@ -24,7 +26,7 @@ func whipOffer(body []byte) *pwebrtc.SessionDescription {
 	}
 }
 
-func gatherCodecs(tracks []*webrtc.IncomingTrack) []pwebrtc.RTPCodecParameters {
+func gatherCodecs(tracks []*webrtc.InboundTrack) []pwebrtc.RTPCodecParameters {
 	codecs := make([]pwebrtc.RTPCodecParameters, len(tracks))
 	for i, track := range tracks {
 		codecs[i] = track.Codec()
@@ -38,11 +40,11 @@ func TestClientRead(t *testing.T) {
 		"video+audio",
 	} {
 		t.Run(ca, func(t *testing.T) {
-			var outgoingTracks []*webrtc.OutgoingTrack
+			var outboundTracks []*webrtc.OutboundTrack
 
 			switch ca {
 			case "audio":
-				outgoingTracks = []*webrtc.OutgoingTrack{{
+				outboundTracks = []*webrtc.OutboundTrack{{
 					Caps: pwebrtc.RTPCodecCapability{
 						MimeType:  "audio/opus",
 						ClockRate: 48000,
@@ -51,7 +53,7 @@ func TestClientRead(t *testing.T) {
 				}}
 
 			case "video+audio":
-				outgoingTracks = []*webrtc.OutgoingTrack{
+				outboundTracks = []*webrtc.OutboundTrack{
 					{
 						Caps: pwebrtc.RTPCodecCapability{
 							MimeType:  "video/H264",
@@ -72,7 +74,7 @@ func TestClientRead(t *testing.T) {
 				LocalRandomUDP:    true,
 				IPsFromInterfaces: true,
 				Publish:           true,
-				OutgoingTracks:    outgoingTracks,
+				OutboundTracks:    outboundTracks,
 				Log:               test.NilLogger,
 			}
 			err := pc.Start()
@@ -103,7 +105,7 @@ func TestClientRead(t *testing.T) {
 
 						require.NotContains(t, offer.SDP, "a=candidate:")
 
-						answer, err2 := pc.CreateFullAnswer(offer)
+						answer, err2 := pc.CreateFullAnswer(offer, false)
 						require.NoError(t, err2)
 
 						w.Header().Set("Content-Type", "application/sdp")
@@ -116,17 +118,15 @@ func TestClientRead(t *testing.T) {
 							err3 := pc.WaitUntilConnected(10 * time.Second)
 							require.NoError(t, err3)
 
-							for _, track := range outgoingTracks {
+							for _, track := range outboundTracks {
 								err3 = track.WriteRTP(&rtp.Packet{
-									Header: rtp.Header{
-										Version:        2,
-										Marker:         true,
-										PayloadType:    111,
-										SequenceNumber: 1123,
-										Timestamp:      45343,
-										SSRC:           563424,
-									},
-									Payload: []byte{5, 2},
+									Version:        2,
+									Marker:         true,
+									PayloadType:    111,
+									SequenceNumber: 1123,
+									Timestamp:      45343,
+									SSRC:           563424,
+									Payload:        []byte{5, 2},
 								})
 								require.NoError(t, err3)
 							}
@@ -159,7 +159,7 @@ func TestClientRead(t *testing.T) {
 			u, err := url.Parse("http://localhost:9005/my/resource")
 			require.NoError(t, err)
 
-			cl := &Client{
+			cl := &whip.Client{
 				URL:        u,
 				HTTPClient: &http.Client{},
 				Log:        test.NilLogger,
@@ -168,21 +168,19 @@ func TestClientRead(t *testing.T) {
 			require.NoError(t, err)
 			defer cl.Close() //nolint:errcheck
 
-			codecs := gatherCodecs(cl.IncomingTracks())
+			codecs := gatherCodecs(cl.InboundTracks())
 
 			switch ca {
 			case "audio":
 				require.Equal(t, []pwebrtc.RTPCodecParameters{
 					{
-						RTPCodecCapability: pwebrtc.RTPCodecCapability{
-							MimeType:    pwebrtc.MimeTypeOpus,
-							ClockRate:   48000,
-							Channels:    2,
-							SDPFmtpLine: "minptime=10;useinbandfec=1;stereo=1;sprop-stereo=1",
-							RTCPFeedback: []pwebrtc.RTCPFeedback{{
-								Type: "transport-cc",
-							}},
-						},
+						MimeType:    pwebrtc.MimeTypeOpus,
+						ClockRate:   48000,
+						Channels:    2,
+						SDPFmtpLine: "minptime=10;useinbandfec=1;stereo=1;sprop-stereo=1",
+						RTCPFeedback: []pwebrtc.RTCPFeedback{{
+							Type: "transport-cc",
+						}},
 						PayloadType: 111,
 					},
 				}, codecs)
@@ -194,33 +192,29 @@ func TestClientRead(t *testing.T) {
 
 				require.Equal(t, []pwebrtc.RTPCodecParameters{
 					{
-						RTPCodecCapability: pwebrtc.RTPCodecCapability{
-							MimeType:     pwebrtc.MimeTypeH264,
-							ClockRate:    90000,
-							SDPFmtpLine:  "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42001f",
-							RTCPFeedback: codecs[0].RTCPFeedback,
-						},
-						PayloadType: 105,
+						MimeType:     pwebrtc.MimeTypeH264,
+						ClockRate:    90000,
+						SDPFmtpLine:  "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42001f",
+						RTCPFeedback: codecs[0].RTCPFeedback,
+						PayloadType:  105,
 					},
 					{
-						RTPCodecCapability: pwebrtc.RTPCodecCapability{
-							MimeType:     pwebrtc.MimeTypeOpus,
-							ClockRate:    48000,
-							Channels:     2,
-							SDPFmtpLine:  "minptime=10;useinbandfec=1;stereo=1;sprop-stereo=1",
-							RTCPFeedback: codecs[1].RTCPFeedback,
-						},
-						PayloadType: 111,
+						MimeType:     pwebrtc.MimeTypeOpus,
+						ClockRate:    48000,
+						Channels:     2,
+						SDPFmtpLine:  "minptime=10;useinbandfec=1;stereo=1;sprop-stereo=1",
+						RTCPFeedback: codecs[1].RTCPFeedback,
+						PayloadType:  111,
 					},
 				}, codecs)
 			}
 
-			recv := make([]chan struct{}, len(outgoingTracks))
-			for i := range outgoingTracks {
+			recv := make([]chan struct{}, len(outboundTracks))
+			for i := range outboundTracks {
 				recv[i] = make(chan struct{})
 			}
 
-			for i, track := range cl.IncomingTracks() {
+			for i, track := range cl.InboundTracks() {
 				ci := i
 				track.OnPacketRTP = func(_ *rtp.Packet) {
 					close(recv[ci])
@@ -273,7 +267,7 @@ func TestClientPublish(t *testing.T) {
 
 						require.NotContains(t, offer.SDP, "a=candidate:")
 
-						answer, err2 := pc.CreateFullAnswer(offer)
+						answer, err2 := pc.CreateFullAnswer(offer, false)
 						require.NoError(t, err2)
 
 						w.Header().Set("Content-Type", "application/sdp")
@@ -286,23 +280,21 @@ func TestClientPublish(t *testing.T) {
 							err3 := pc.WaitUntilConnected(10 * time.Second)
 							require.NoError(t, err3)
 
-							err3 = pc.GatherIncomingTracks(2 * time.Second)
+							err3 = pc.GatherInboundTracks(2 * time.Second)
 							require.NoError(t, err3)
 
-							codecs := gatherCodecs(pc.IncomingTracks())
+							codecs := gatherCodecs(pc.InboundTracks())
 
 							switch ca {
 							case "audio":
 								require.Equal(t, []pwebrtc.RTPCodecParameters{
 									{
-										RTPCodecCapability: pwebrtc.RTPCodecCapability{
-											MimeType:     pwebrtc.MimeTypeOpus,
-											ClockRate:    48000,
-											Channels:     2,
-											SDPFmtpLine:  "",
-											RTCPFeedback: codecs[0].RTCPFeedback,
-										},
-										PayloadType: 96,
+										MimeType:     pwebrtc.MimeTypeOpus,
+										ClockRate:    48000,
+										Channels:     2,
+										SDPFmtpLine:  "",
+										RTCPFeedback: codecs[0].RTCPFeedback,
+										PayloadType:  96,
 									},
 								}, codecs)
 
@@ -313,27 +305,23 @@ func TestClientPublish(t *testing.T) {
 
 								require.Equal(t, []pwebrtc.RTPCodecParameters{
 									{
-										RTPCodecCapability: pwebrtc.RTPCodecCapability{
-											MimeType:     pwebrtc.MimeTypeH264,
-											ClockRate:    90000,
-											RTCPFeedback: codecs[0].RTCPFeedback,
-										},
-										PayloadType: 96,
+										MimeType:     pwebrtc.MimeTypeH264,
+										ClockRate:    90000,
+										RTCPFeedback: codecs[0].RTCPFeedback,
+										PayloadType:  96,
 									},
 									{
-										RTPCodecCapability: pwebrtc.RTPCodecCapability{
-											MimeType:     pwebrtc.MimeTypeOpus,
-											ClockRate:    48000,
-											Channels:     2,
-											SDPFmtpLine:  "",
-											RTCPFeedback: codecs[1].RTCPFeedback,
-										},
-										PayloadType: 97,
+										MimeType:     pwebrtc.MimeTypeOpus,
+										ClockRate:    48000,
+										Channels:     2,
+										SDPFmtpLine:  "",
+										RTCPFeedback: codecs[1].RTCPFeedback,
+										PayloadType:  97,
 									},
 								}, codecs)
 							}
 
-							for i, track := range pc.IncomingTracks() {
+							for i, track := range pc.InboundTracks() {
 								ci := i
 								track.OnPacketRTP = func(_ *rtp.Packet) {
 									close(recv[ci])
@@ -370,11 +358,11 @@ func TestClientPublish(t *testing.T) {
 			u, err := url.Parse("http://localhost:9005/my/resource")
 			require.NoError(t, err)
 
-			var outgoingTracks []*webrtc.OutgoingTrack
+			var outboundTracks []*webrtc.OutboundTrack
 
 			switch ca {
 			case "audio":
-				outgoingTracks = []*webrtc.OutgoingTrack{{
+				outboundTracks = []*webrtc.OutboundTrack{{
 					Caps: pwebrtc.RTPCodecCapability{
 						MimeType:  "audio/opus",
 						ClockRate: 48000,
@@ -383,7 +371,7 @@ func TestClientPublish(t *testing.T) {
 				}}
 
 			case "video+audio":
-				outgoingTracks = []*webrtc.OutgoingTrack{
+				outboundTracks = []*webrtc.OutboundTrack{
 					{
 						Caps: pwebrtc.RTPCodecCapability{
 							MimeType:  "video/H264",
@@ -400,15 +388,15 @@ func TestClientPublish(t *testing.T) {
 				}
 			}
 
-			recv = make([]chan struct{}, len(outgoingTracks))
-			for i := range outgoingTracks {
+			recv = make([]chan struct{}, len(outboundTracks))
+			for i := range outboundTracks {
 				recv[i] = make(chan struct{})
 			}
 
-			cl := &Client{
+			cl := &whip.Client{
 				URL:            u,
 				Publish:        true,
-				OutgoingTracks: outgoingTracks,
+				OutboundTracks: outboundTracks,
 				HTTPClient:     &http.Client{},
 				Log:            test.NilLogger,
 			}
@@ -416,17 +404,15 @@ func TestClientPublish(t *testing.T) {
 			require.NoError(t, err)
 			defer cl.Close() //nolint:errcheck
 
-			for _, track := range cl.OutgoingTracks {
+			for _, track := range cl.OutboundTracks {
 				err = track.WriteRTP(&rtp.Packet{
-					Header: rtp.Header{
-						Version:        2,
-						Marker:         true,
-						PayloadType:    111,
-						SequenceNumber: 1123,
-						Timestamp:      45343,
-						SSRC:           563424,
-					},
-					Payload: []byte{5, 2},
+					Version:        2,
+					Marker:         true,
+					PayloadType:    111,
+					SequenceNumber: 1123,
+					Timestamp:      45343,
+					SSRC:           563424,
+					Payload:        []byte{5, 2},
 				})
 				require.NoError(t, err)
 			}
@@ -461,7 +447,7 @@ func TestClientBearerToken(t *testing.T) {
 				require.NoError(t, err2)
 				offer := whipOffer(body)
 
-				answer, err2 := pc.CreateFullAnswer(offer)
+				answer, err2 := pc.CreateFullAnswer(offer, false)
 				require.NoError(t, err2)
 
 				w.Header().Set("Content-Type", "application/sdp")
@@ -481,7 +467,7 @@ func TestClientBearerToken(t *testing.T) {
 	u, err := url.Parse("http://localhost:9005/my/resource")
 	require.NoError(t, err)
 
-	outgoingTracks := []*webrtc.OutgoingTrack{{
+	outboundTracks := []*webrtc.OutboundTrack{{
 		Caps: pwebrtc.RTPCodecCapability{
 			MimeType:  "audio/opus",
 			ClockRate: 48000,
@@ -489,13 +475,13 @@ func TestClientBearerToken(t *testing.T) {
 		},
 	}}
 
-	cl := &Client{
+	cl := &whip.Client{
 		URL:            u,
 		HTTPClient:     &http.Client{},
 		BearerToken:    "my_secret_token",
 		Log:            test.NilLogger,
 		Publish:        true,
-		OutgoingTracks: outgoingTracks,
+		OutboundTracks: outboundTracks,
 	}
 	err = cl.Initialize(context.Background())
 	require.NoError(t, err)
@@ -537,7 +523,7 @@ func TestClientNoTrickleICE(t *testing.T) {
 
 				require.Contains(t, offer.SDP, "a=candidate:")
 
-				answer, err2 := pc.CreateFullAnswer(offer)
+				answer, err2 := pc.CreateFullAnswer(offer, false)
 				require.NoError(t, err2)
 
 				w.Header().Set("Content-Type", "application/sdp")
@@ -549,10 +535,10 @@ func TestClientNoTrickleICE(t *testing.T) {
 					err3 := pc.WaitUntilConnected(10 * time.Second)
 					require.NoError(t, err3)
 
-					err3 = pc.GatherIncomingTracks(2 * time.Second)
+					err3 = pc.GatherInboundTracks(2 * time.Second)
 					require.NoError(t, err3)
 
-					pc.IncomingTracks()[0].OnPacketRTP = func(_ *rtp.Packet) {
+					pc.InboundTracks()[0].OnPacketRTP = func(_ *rtp.Packet) {
 						close(recv)
 					}
 
@@ -583,7 +569,7 @@ func TestClientNoTrickleICE(t *testing.T) {
 	u, err := url.Parse("http://localhost:9005/my/resource")
 	require.NoError(t, err)
 
-	outgoingTracks := []*webrtc.OutgoingTrack{{
+	outboundTracks := []*webrtc.OutboundTrack{{
 		Caps: pwebrtc.RTPCodecCapability{
 			MimeType:  "audio/opus",
 			ClockRate: 48000,
@@ -591,10 +577,10 @@ func TestClientNoTrickleICE(t *testing.T) {
 		},
 	}}
 
-	cl := &Client{
+	cl := &whip.Client{
 		URL:            u,
 		Publish:        true,
-		OutgoingTracks: outgoingTracks,
+		OutboundTracks: outboundTracks,
 		HTTPClient:     &http.Client{},
 		Log:            test.NilLogger,
 	}
@@ -602,16 +588,14 @@ func TestClientNoTrickleICE(t *testing.T) {
 	require.NoError(t, err)
 	defer cl.Close() //nolint:errcheck
 
-	err = outgoingTracks[0].WriteRTP(&rtp.Packet{
-		Header: rtp.Header{
-			Version:        2,
-			Marker:         true,
-			PayloadType:    111,
-			SequenceNumber: 1123,
-			Timestamp:      45343,
-			SSRC:           563424,
-		},
-		Payload: []byte{5, 2},
+	err = outboundTracks[0].WriteRTP(&rtp.Packet{
+		Version:        2,
+		Marker:         true,
+		PayloadType:    111,
+		SequenceNumber: 1123,
+		Timestamp:      45343,
+		SSRC:           563424,
+		Payload:        []byte{5, 2},
 	})
 	require.NoError(t, err)
 

@@ -16,14 +16,17 @@ import (
 	"github.com/bluenviron/mediacommon/v2/pkg/formats/fmp4/seekablebuffer"
 	mcodecs "github.com/bluenviron/mediacommon/v2/pkg/formats/mp4/codecs"
 	"github.com/bluenviron/mediacommon/v2/pkg/formats/pmp4"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+
 	"github.com/bluenviron/mediamtx/internal/conf"
 	"github.com/bluenviron/mediamtx/internal/recordstore"
 	"github.com/bluenviron/mediamtx/internal/test"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
 )
 
 func writeSegment1(t *testing.T, fpath string) {
+	t.Helper()
+
 	init := fmp4.Init{
 		Tracks: []*fmp4.InitTrack{
 			{
@@ -39,9 +42,10 @@ func writeSegment1(t *testing.T, fpath string) {
 				TimeScale: 48000,
 				Codec: &mcodecs.MPEG4Audio{
 					Config: mpeg4audio.AudioSpecificConfig{
-						Type:         mpeg4audio.ObjectTypeAACLC,
-						SampleRate:   48000,
-						ChannelCount: 2,
+						Type:          mpeg4audio.ObjectTypeAACLC,
+						SampleRate:    48000,
+						ChannelCount:  2, //nolint:staticcheck
+						ChannelConfig: 2,
 					},
 				},
 			},
@@ -102,6 +106,8 @@ func writeSegment1(t *testing.T, fpath string) {
 }
 
 func writeSegment2(t *testing.T, fpath string) {
+	t.Helper()
+
 	init := fmp4.Init{
 		Tracks: []*fmp4.InitTrack{
 			{
@@ -117,9 +123,10 @@ func writeSegment2(t *testing.T, fpath string) {
 				TimeScale: 48000,
 				Codec: &mcodecs.MPEG4Audio{
 					Config: mpeg4audio.AudioSpecificConfig{
-						Type:         mpeg4audio.ObjectTypeAACLC,
-						SampleRate:   48000,
-						ChannelCount: 2,
+						Type:          mpeg4audio.ObjectTypeAACLC,
+						SampleRate:    48000,
+						ChannelConfig: 2,
+						ChannelCount:  2, //nolint:staticcheck
 					},
 				},
 			},
@@ -190,6 +197,8 @@ func writeSegment2(t *testing.T, fpath string) {
 }
 
 func writeSegment3(t *testing.T, fpath string) {
+	t.Helper()
+
 	init := fmp4.Init{
 		Tracks: []*fmp4.InitTrack{
 			{
@@ -259,9 +268,10 @@ func TestOnGet(t *testing.T) {
 							TimeScale: 48000,
 							Codec: &mcodecs.MPEG4Audio{
 								Config: mpeg4audio.AudioSpecificConfig{
-									Type:         mpeg4audio.ObjectTypeAACLC,
-									SampleRate:   48000,
-									ChannelCount: 2,
+									Type:          mpeg4audio.ObjectTypeAACLC,
+									SampleRate:    48000,
+									ChannelCount:  2, //nolint:staticcheck
+									ChannelConfig: 2,
 								},
 							},
 						},
@@ -661,7 +671,7 @@ func TestOnGet(t *testing.T) {
 									Config: mpeg4audio.AudioSpecificConfig{
 										Type:          mpeg4audio.ObjectTypeAACLC,
 										SampleRate:    48000,
-										ChannelCount:  2,
+										ChannelCount:  2, //nolint:staticcheck
 										ChannelConfig: 2,
 									},
 								},

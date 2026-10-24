@@ -32,6 +32,7 @@ type APISRTConn struct {
 	Path       string          `json:"path"`
 	Query      string          `json:"query"`
 	User       string          `json:"user"`
+	ExpiresAt  *time.Time      `json:"expiresAt"`
 
 	// The metric names/comments are pulled from GoSRT
 
@@ -69,7 +70,7 @@ type APISRTConn struct {
 	// The total accumulated time in microseconds, during which the SRT sender has some data to transmit,
 	// including packets that have been sent, but not yet acknowledged
 	UsSndDuration uint64 `json:"usSndDuration"`
-	// ??
+
 	PacketsReceivedBelated uint64 `json:"packetsReceivedBelated"`
 	// The total number of dropped by the SRT sender DATA packets that have no chance to be delivered in time
 	PacketsSendDrop uint64 `json:"packetsSendDrop"`

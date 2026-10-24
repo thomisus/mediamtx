@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -23,18 +24,69 @@ const (
 	maxInboundSDPSize = 128 * 1024
 )
 
+func whipAnswer(body []byte) *pwebrtc.SessionDescription {
+	return &pwebrtc.SessionDescription{
+		Type: pwebrtc.SDPTypeAnswer,
+		SDP:  string(body),
+	}
+}
+
+func offerAndCandidateToSDPFragment(
+	offer *pwebrtc.SessionDescription,
+	candidate *pwebrtc.ICECandidateInit,
+) (*SDPFragment, error) {
+	f := &SDPFragment{}
+
+	var desc sdp.SessionDescription
+	err := desc.Unmarshal([]byte(offer.SDP))
+	if err != nil {
+		return nil, err
+	}
+
+	if candidate.SDPMLineIndex == nil {
+		return nil, fmt.Errorf("sdpMLineIndex is null")
+	}
+
+	if len(desc.MediaDescriptions) < int(*candidate.SDPMLineIndex)+1 {
+		return nil, fmt.Errorf("sdpMLineIndex is out of range")
+	}
+
+	media := desc.MediaDescriptions[*candidate.SDPMLineIndex]
+
+	iceUFrag, _ := media.Attribute("ice-ufrag")
+	icePwd, _ := media.Attribute("ice-pwd")
+
+	if iceUFrag == "" || icePwd == "" {
+		return nil, fmt.Errorf("ice-ufrag or ice-pwd are missing in the media of the candidate")
+	}
+
+	f.Medias = append(f.Medias, &sdp.MediaDescription{
+		MediaName: media.MediaName,
+		Attributes: []sdp.Attribute{
+			{Key: "mid", Value: strconv.FormatUint(uint64(*candidate.SDPMLineIndex), 10)},
+			{Key: "ice-ufrag", Value: iceUFrag},
+			{Key: "ice-pwd", Value: icePwd},
+			{Key: "candidate", Value: candidate.Candidate},
+		},
+	})
+
+	return f, nil
+}
+
 // Client is a WHIP client.
 type Client struct {
-	URL                *url.URL
-	Publish            bool
-	OutgoingTracks     []*webrtc.OutgoingTrack
-	HTTPClient         *http.Client
-	BearerToken        string
-	UDPReadBufferSize  uint
-	STUNGatherTimeout  time.Duration
-	HandshakeTimeout   time.Duration
-	TrackGatherTimeout time.Duration
-	Log                logger.Writer
+	URL                  *url.URL
+	Publish              bool
+	OutboundTracks       []*webrtc.OutboundTrack
+	OutboundDataChannels []*webrtc.OutboundDataChannel
+	HTTPClient           *http.Client
+	BearerToken          string
+	UDPReadBufferSize    uint
+	SupportsIPv6         bool
+	STUNGatherTimeout    time.Duration
+	HandshakeTimeout     time.Duration
+	TrackGatherTimeout   time.Duration
+	Log                  logger.Writer
 
 	pc            *webrtc.PeerConnection
 	useTrickleICE bool
@@ -58,14 +110,16 @@ func (c *Client) Initialize(ctx context.Context) error {
 	}
 
 	c.pc = &webrtc.PeerConnection{
-		UDPReadBufferSize: c.UDPReadBufferSize,
-		LocalRandomUDP:    true,
-		ICEServers:        iceServers,
-		IPsFromInterfaces: true,
-		Publish:           c.Publish,
-		STUNGatherTimeout: c.STUNGatherTimeout,
-		OutgoingTracks:    c.OutgoingTracks,
-		Log:               c.Log,
+		Net:                  &webrtc.Net{UDPReadBufferSize: int(c.UDPReadBufferSize)},
+		LocalRandomUDP:       true,
+		SupportsIPv6:         c.SupportsIPv6,
+		ICEServers:           iceServers,
+		IPsFromInterfaces:    true,
+		Publish:              c.Publish,
+		STUNGatherTimeout:    c.STUNGatherTimeout,
+		OutboundTracks:       c.OutboundTracks,
+		OutboundDataChannels: c.OutboundDataChannels,
+		Log:                  c.Log,
 	}
 	err = c.pc.Start()
 	if err != nil {
@@ -81,7 +135,7 @@ func (c *Client) Initialize(ctx context.Context) error {
 	select {
 	case <-ctx.Done():
 		c.pc.Close()
-		<-initializeRes
+		<-initializeRes //nolint:errcheck
 		return fmt.Errorf("terminated")
 
 	case err = <-initializeRes:
@@ -99,7 +153,7 @@ func (c *Client) initializeInner(ctx context.Context) error {
 	var offer *pwebrtc.SessionDescription
 	if c.useTrickleICE {
 		var err error
-		offer, err = c.pc.CreatePartialOffer()
+		offer, err = c.pc.CreatePartialOffer(false)
 		if err != nil {
 			return err
 		}
@@ -149,7 +203,7 @@ func (c *Client) initializeInner(ctx context.Context) error {
 	}
 
 	if !c.Publish {
-		err = c.pc.GatherIncomingTracks(c.TrackGatherTimeout)
+		err = c.pc.GatherInboundTracks(c.TrackGatherTimeout)
 		if err != nil {
 			c.deleteSession(context.Background()) //nolint:errcheck
 			return err
@@ -197,9 +251,9 @@ func (c *Client) PeerConnection() *webrtc.PeerConnection {
 	return c.pc
 }
 
-// IncomingTracks returns incoming tracks.
-func (c *Client) IncomingTracks() []*webrtc.IncomingTrack {
-	return c.pc.IncomingTracks()
+// InboundTracks returns incoming tracks.
+func (c *Client) InboundTracks() []*webrtc.InboundTrack {
+	return c.pc.InboundTracks()
 }
 
 // StartReading starts reading all incoming tracks.
@@ -214,7 +268,7 @@ func (c *Client) Close() error {
 	return err
 }
 
-// Wait waits until a fatal error.
+// Wait waits until a fatal error occurs.
 func (c *Client) Wait() error {
 	<-c.pc.Failed()
 	return fmt.Errorf("peer connection closed")
@@ -249,7 +303,12 @@ func (c *Client) optionsICEServers(
 		}
 	}
 
-	return LinkHeaderUnmarshal(res.Header["Link"])
+	var lh LinkHeader
+	err = lh.Unmarshal(res.Header["Link"])
+	if err != nil {
+		return nil, err
+	}
+	return []pwebrtc.ICEServer(lh), nil
 }
 
 type whipPostOfferResponse struct {
@@ -303,13 +362,8 @@ func (c *Client) postOffer(
 		return nil, err
 	}
 
-	answer := &pwebrtc.SessionDescription{
-		Type: pwebrtc.SDPTypeAnswer,
-		SDP:  string(sdp),
-	}
-
 	return &whipPostOfferResponse{
-		Answer:   answer,
+		Answer:   whipAnswer(sdp),
 		Location: Location,
 		ETag:     etag,
 	}, nil
@@ -321,12 +375,17 @@ func (c *Client) patchCandidate(
 	etag string,
 	candidate *pwebrtc.ICECandidateInit,
 ) error {
-	frag, err := ICEFragmentMarshal(offer.SDP, []*pwebrtc.ICECandidateInit{candidate})
+	frag, err := offerAndCandidateToSDPFragment(offer, candidate)
 	if err != nil {
 		return err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, c.URL.String(), bytes.NewReader(frag))
+	enc, err := frag.Marshal()
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, c.URL.String(), bytes.NewReader(enc))
 	if err != nil {
 		return err
 	}
