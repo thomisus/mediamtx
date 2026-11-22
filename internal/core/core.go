@@ -138,18 +138,6 @@ func atLeastOneRecordDeleteAfter(pathConfs map[string]*conf.Path) bool {
 	return false
 }
 
-func getRTPMaxPayloadSize(udpMaxPayloadSize int, rtspEncryption conf.Encryption) int {
-	// UDP max payload size - 12 (RTP header)
-	v := udpMaxPayloadSize - 12
-
-	// 10 (SRTP HMAC SHA1 authentication tag)
-	if rtspEncryption == conf.EncryptionOptional || rtspEncryption == conf.EncryptionStrict {
-		v -= 10
-	}
-
-	return v
-}
-
 func supportsIPv6() bool {
 	ln, err := net.ListenUDP("udp6", &net.UDPAddr{IP: net.IPv6unspecified, Port: 0})
 	if err != nil {
@@ -715,8 +703,6 @@ func (p *Core) createResources(initial bool) error {
 	}
 
 	if p.pathManager == nil {
-		rtpMaxPayloadSize := getRTPMaxPayloadSize(p.conf.UDPMaxPayloadSize, p.conf.RTSPEncryption)
-
 		p.pathManager = &pathManager{
 			logLevel:           p.conf.LogLevel,
 			dumpPackets:        p.conf.DumpPackets,
@@ -727,7 +713,7 @@ func (p *Core) createResources(initial bool) error {
 			udpReadBufferSize:  p.conf.UDPReadBufferSize,
 			udpWriteBufferSize: p.conf.UDPWriteBufferSize,
 			udpMaxPayloadSize:  p.conf.UDPMaxPayloadSize,
-			rtpMaxPayloadSize:  rtpMaxPayloadSize,
+			rtspEncryption:     p.conf.RTSPEncryption,
 			supportsIPv6:       p.supportsIPv6,
 			pathConfs:          p.conf.Paths,
 			authManager:        p.authManager,
@@ -938,6 +924,7 @@ func (p *Core) createResources(initial bool) error {
 			LocalUDPAddress:              p.conf.WebRTCLocalUDPAddress,
 			LocalTCPAddress:              p.conf.WebRTCLocalTCPAddress,
 			SupportsIPv6:                 p.supportsIPv6,
+			UDPMaxPayloadSize:            p.conf.UDPMaxPayloadSize,
 			IPsFromInterfaces:            p.conf.WebRTCIPsFromInterfaces,
 			IPsFromInterfacesList:        p.conf.WebRTCIPsFromInterfacesList,
 			IPsFromInterfacesExcludeList: p.conf.WebRTCIPsFromInterfacesExcludeList,
@@ -962,10 +949,12 @@ func (p *Core) createResources(initial bool) error {
 		p.srtServer == nil {
 		i := &srt.Server{
 			Address:             p.conf.SRTAddress,
+			MinLatency:          p.conf.SRTMinLatency,
 			RTSPAddress:         p.conf.RTSPAddress,
 			ReadTimeout:         p.conf.ReadTimeout,
 			WriteTimeout:        p.conf.WriteTimeout,
 			UDPMaxPayloadSize:   p.conf.UDPMaxPayloadSize,
+			DumpPackets:         p.conf.DumpPackets,
 			UDPReadBufferSize:   p.conf.UDPReadBufferSize,
 			UDPWriteBufferSize:  p.conf.UDPWriteBufferSize,
 			RunOnConnect:        p.conf.RunOnConnect,
@@ -1270,6 +1259,7 @@ func (p *Core) closeResources(newConf *conf.Conf) error {
 		newConf.WriteTimeout != p.conf.WriteTimeout ||
 		newConf.UDPReadBufferSize != p.conf.UDPReadBufferSize ||
 		newConf.UDPWriteBufferSize != p.conf.UDPWriteBufferSize ||
+		newConf.UDPMaxPayloadSize != p.conf.UDPMaxPayloadSize ||
 		newConf.WebRTCLocalUDPAddress != p.conf.WebRTCLocalUDPAddress ||
 		newConf.WebRTCLocalTCPAddress != p.conf.WebRTCLocalTCPAddress ||
 		newConf.WebRTCIPsFromInterfaces != p.conf.WebRTCIPsFromInterfaces ||
@@ -1285,10 +1275,12 @@ func (p *Core) closeResources(newConf *conf.Conf) error {
 		closePathManager
 
 	closeSRTServer := newConf == nil ||
+		newConf.DumpPackets != p.conf.DumpPackets ||
 		newConf.UDPReadBufferSize != p.conf.UDPReadBufferSize ||
 		newConf.UDPWriteBufferSize != p.conf.UDPWriteBufferSize ||
 		newConf.SRT != p.conf.SRT ||
 		newConf.SRTAddress != p.conf.SRTAddress ||
+		newConf.SRTMinLatency != p.conf.SRTMinLatency ||
 		newConf.RTSPAddress != p.conf.RTSPAddress ||
 		newConf.ReadTimeout != p.conf.ReadTimeout ||
 		newConf.WriteTimeout != p.conf.WriteTimeout ||

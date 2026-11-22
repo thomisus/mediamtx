@@ -21,6 +21,22 @@ import (
 	"github.com/bluenviron/mediamtx/internal/logger"
 )
 
+const (
+	rtpHeaderSize   = 12
+	srtpAuthTagSize = 10
+)
+
+func rtspRTPMaxUnencryptedPacketSize(udpMaxPayloadSize int, rtspEncryption conf.Encryption) int {
+	if rtspEncryption == conf.EncryptionOptional || rtspEncryption == conf.EncryptionStrict {
+		return udpMaxPayloadSize - srtpAuthTagSize
+	}
+	return udpMaxPayloadSize
+}
+
+func rtspRTPMaxPayloadSize(udpMaxPayloadSize int, rtspEncryption conf.Encryption) int {
+	return rtspRTPMaxUnencryptedPacketSize(udpMaxPayloadSize, rtspEncryption) - rtpHeaderSize
+}
+
 func mediasFromAlwaysAvailableFile(alwaysAvailableFile string) ([]*description.Media, error) {
 	f, err := os.Open(alwaysAvailableFile)
 	if err != nil {
@@ -287,7 +303,8 @@ type Stream struct {
 	AlwaysAvailableTracks []conf.AlwaysAvailableTrack
 	AlwaysAvailableFile   string
 	WriteQueueSize        int
-	RTPMaxPayloadSize     int
+	UDPMaxPayloadSize     int
+	RTSPEncryption        conf.Encryption
 	ReplaceNTP            bool
 	Parent                logger.Writer
 
@@ -306,12 +323,9 @@ type Stream struct {
 	readers              map[*Reader]struct{}
 	inboundFramesInError *errordumper.Dumper
 
-	timeMutex         sync.Mutex
-	firstTimeReceived bool
-	lastPTS           time.Duration
-	lastSystemTime    time.Time
-
-	hasReaders chan struct{}
+	rtspRTPMaxUnencryptedPacketSize int
+	rtspRTPMaxPayloadSize           int
+	hasReaders                      chan struct{}
 }
 
 // Initialize initializes a Stream.
@@ -333,6 +347,9 @@ func (s *Stream) Initialize() error {
 		s.OrigDesc = s.offlineDesc
 	}
 
+	s.rtspRTPMaxUnencryptedPacketSize = rtspRTPMaxUnencryptedPacketSize(s.UDPMaxPayloadSize, s.RTSPEncryption)
+	s.rtspRTPMaxPayloadSize = rtspRTPMaxPayloadSize(s.UDPMaxPayloadSize, s.RTSPEncryption)
+
 	s.medias = make(map[*description.Media]*streamMedia)
 	s.readers = make(map[*Reader]struct{})
 	s.hasReaders = make(chan struct{})
@@ -346,9 +363,6 @@ func (s *Stream) Initialize() error {
 			}
 		},
 	}
-	s.inboundFramesInError.Start()
-
-	s.lastSystemTime = time.Now()
 
 	s.outDesc = &description.Session{
 		Title:  s.OrigDesc.Title,
@@ -357,17 +371,17 @@ func (s *Stream) Initialize() error {
 
 	for i, origMedia := range s.OrigDesc.Medias {
 		sm := &streamMedia{
-			origMedia:            origMedia,
-			alwaysAvailable:      s.AlwaysAvailable,
-			rtpMaxPayloadSize:    s.RTPMaxPayloadSize,
-			replaceNTP:           s.ReplaceNTP,
-			inboundBytes:         &s.inboundBytes,
-			outboundBytes:        &s.outboundBytes,
-			updateLastTime:       s.updateLastTime,
-			writeRTSP:            s.writeRTSP,
-			updateOutDesc:        s.updateOutDesc,
-			inboundFramesInError: s.inboundFramesInError,
-			parent:               s.Parent,
+			origMedia:                       origMedia,
+			alwaysAvailable:                 s.AlwaysAvailable,
+			rtspRTPMaxUnencryptedPacketSize: s.rtspRTPMaxUnencryptedPacketSize,
+			rtspRTPMaxPayloadSize:           s.rtspRTPMaxPayloadSize,
+			replaceNTP:                      s.ReplaceNTP,
+			inboundBytes:                    &s.inboundBytes,
+			outboundBytes:                   &s.outboundBytes,
+			writeRTSP:                       s.writeRTSP,
+			updateOutDesc:                   s.updateOutDesc,
+			inboundFramesInError:            s.inboundFramesInError,
+			parent:                          s.Parent,
 		}
 		err := sm.initialize()
 		if err != nil {
@@ -385,6 +399,7 @@ func (s *Stream) Initialize() error {
 		}
 	}
 
+	s.inboundFramesInError.Start()
 	return nil
 }
 
@@ -572,19 +587,6 @@ func (s *Stream) updateOutDesc(update func()) {
 	if s.rtspsStream != nil {
 		s.rtspsStream.ReloadDesc()
 	}
-}
-
-func (s *Stream) updateLastTime(pts time.Duration) {
-	s.timeMutex.Lock()
-	defer s.timeMutex.Unlock()
-
-	s.firstTimeReceived = true
-
-	if pts > s.lastPTS {
-		s.lastPTS = pts
-	}
-
-	s.lastSystemTime = time.Now()
 }
 
 func (s *Stream) writeRTSP(outMedia *description.Media, pkts []*rtp.Packet, ntp time.Time) {

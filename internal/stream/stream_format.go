@@ -38,17 +38,17 @@ func randUint32() (uint32, error) {
 }
 
 type streamFormat struct {
-	origFormat           format.Format
-	alwaysAvailable      bool
-	rtpMaxPayloadSize    int
-	replaceNTP           bool
-	inboundFramesInError *errordumper.Dumper
-	inboundBytes         *atomic.Uint64
-	outboundBytes        *atomic.Uint64
-	updateLastTime       func(time.Duration)
-	writeRTSP            func([]*rtp.Packet, time.Time)
-	updateOutDesc        func(func())
-	parent               logger.Writer
+	origFormat                      format.Format
+	alwaysAvailable                 bool
+	rtspRTPMaxUnencryptedPacketSize int
+	rtspRTPMaxPayloadSize           int
+	replaceNTP                      bool
+	inboundFramesInError            *errordumper.Dumper
+	inboundBytes                    *atomic.Uint64
+	outboundBytes                   *atomic.Uint64
+	writeRTSP                       func([]*rtp.Packet, time.Time)
+	updateOutDesc                   func(func())
+	parent                          logger.Writer
 
 	outFormat     format.Format
 	forceRemux    bool
@@ -59,6 +59,10 @@ type streamFormat struct {
 	rtpTimeOffset uint32
 	ntpEstimator  *ntpestimator.Estimator
 	onDatas       map[*Reader]OnDataFunc
+
+	timeInitialized bool
+	lastPTS         time.Duration
+	lastSystemTime  time.Time
 }
 
 func (sf *streamFormat) initialize() error {

@@ -83,7 +83,7 @@ type pathManager struct {
 	udpReadBufferSize  uint
 	udpWriteBufferSize uint
 	udpMaxPayloadSize  int
-	rtpMaxPayloadSize  int
+	rtspEncryption     conf.Encryption
 	supportsIPv6       bool
 	pathConfs          map[string]*conf.Path
 	authManager        pathManagerAuthManager
@@ -521,7 +521,7 @@ func (pm *pathManager) createPath(
 		udpReadBufferSize:  pm.udpReadBufferSize,
 		udpWriteBufferSize: pm.udpWriteBufferSize,
 		udpMaxPayloadSize:  pm.udpMaxPayloadSize,
-		rtpMaxPayloadSize:  pm.rtpMaxPayloadSize,
+		rtspEncryption:     pm.rtspEncryption,
 		supportsIPv6:       pm.supportsIPv6,
 		conf:               pathConf,
 		name:               name,
@@ -745,6 +745,52 @@ func (pm *pathManager) APIPathsGet(name string) (*defs.APIPath, error) {
 
 		data, err := res.path.APIPathsGet(req)
 		return data, err
+
+	case <-pm.ctx.Done():
+		return nil, fmt.Errorf("terminated")
+	}
+}
+
+// APIReadersList implements defs.APIPathManager.
+func (pm *pathManager) APIReadersList(name string) (*defs.APIPathReaderList, error) {
+	readers, err := pm.apiPathReaders(name)
+	if err != nil {
+		return nil, err
+	}
+
+	return &defs.APIPathReaderList{Items: readers}, nil
+}
+
+// APIReadersGet implements defs.APIPathManager.
+func (pm *pathManager) APIReadersGet(name string, id string) (*defs.APIPathReader, error) {
+	readers, err := pm.apiPathReaders(name)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, r := range readers {
+		if r.ID == id {
+			return &r, nil
+		}
+	}
+
+	return nil, defs.ErrPathReaderNotFound
+}
+
+func (pm *pathManager) apiPathReaders(name string) ([]defs.APIPathReader, error) {
+	req := pathAPIPathsGetReq{
+		name: name,
+		res:  make(chan pathAPIPathsGetRes),
+	}
+
+	select {
+	case pm.chAPIPathsGet <- req:
+		res := <-req.res
+		if res.err != nil {
+			return nil, res.err
+		}
+
+		return res.path.APIReadersList()
 
 	case <-pm.ctx.Done():
 		return nil, fmt.Errorf("terminated")

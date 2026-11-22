@@ -67,7 +67,7 @@ func TestServerPublishExpiration(t *testing.T) {
 			strm := &stream.Stream{
 				OrigDesc:          req.Desc,
 				WriteQueueSize:    512,
-				RTPMaxPayloadSize: 1450,
+				UDPMaxPayloadSize: 1462,
 				Parent:            test.NilLogger,
 			}
 			require.NoError(t, strm.Initialize())
@@ -171,7 +171,7 @@ func TestServerPublish(t *testing.T) {
 							strm = &stream.Stream{
 								OrigDesc:          req.Desc,
 								WriteQueueSize:    512,
-								RTPMaxPayloadSize: 1450,
+								UDPMaxPayloadSize: 1462,
 								Parent:            test.NilLogger,
 							}
 							err2 := strm.Initialize()
@@ -205,14 +205,14 @@ func TestServerPublish(t *testing.T) {
 						},
 					}
 
-					var authMethods []rtspauth.VerifyMethod
+					var authMethods []rtspauth.Method
 					switch ca {
 					case "basic":
-						authMethods = []rtspauth.VerifyMethod{rtspauth.VerifyMethodBasic}
+						authMethods = []rtspauth.Method{rtspauth.MethodBasic}
 					case "digest":
-						authMethods = []rtspauth.VerifyMethod{rtspauth.VerifyMethodDigestMD5}
+						authMethods = []rtspauth.Method{rtspauth.MethodDigestMD5}
 					default:
-						authMethods = []rtspauth.VerifyMethod{rtspauth.VerifyMethodBasic, rtspauth.VerifyMethodDigestMD5}
+						authMethods = []rtspauth.Method{rtspauth.MethodBasic, rtspauth.MethodDigestMD5}
 					}
 
 					s := &rtsp.Server{
@@ -290,6 +290,12 @@ func TestServerPublish(t *testing.T) {
 
 					list, err := s.APISessionsList()
 					require.NoError(t, err)
+
+					profile := "AVP"
+					if encrypt == "tls" {
+						profile = "SAVP"
+					}
+
 					require.Equal(t, &defs.APIRTSPSessionList{
 						Items: []defs.APIRTSPSession{
 							{
@@ -312,13 +318,10 @@ func TestServerPublish(t *testing.T) {
 								RTPPacketsReceived:        list.Items[0].RTPPacketsReceived,
 								RTCPPacketsReceived:       list.Items[0].RTCPPacketsReceived,
 								RTCPPacketsInError:        list.Items[0].RTCPPacketsInError,
+								TransportProtocol:         new("TCP"),
+								TransportProfile:          new(profile),
 								Transport:                 new("TCP"),
-								Profile: func() *string {
-									if encrypt == "tls" {
-										return new("SAVP")
-									}
-									return new("AVP")
-								}(),
+								Profile:                   new(profile),
 							},
 						},
 					}, list)
@@ -365,7 +368,7 @@ func TestServerPublishMPEGTS(t *testing.T) {
 			strm = &stream.Stream{
 				OrigDesc:          req.Desc,
 				WriteQueueSize:    512,
-				RTPMaxPayloadSize: 1450,
+				UDPMaxPayloadSize: 1462,
 				Parent:            test.NilLogger,
 			}
 			err := strm.Initialize()
@@ -483,7 +486,7 @@ func TestServerRead(t *testing.T) {
 			strm := &stream.Stream{
 				OrigDesc:          desc,
 				WriteQueueSize:    512,
-				RTPMaxPayloadSize: 1450,
+				UDPMaxPayloadSize: 1462,
 				Parent:            test.NilLogger,
 			}
 			err := strm.Initialize()
@@ -548,14 +551,14 @@ func TestServerRead(t *testing.T) {
 				},
 			}
 
-			var authMethods []rtspauth.VerifyMethod
+			var authMethods []rtspauth.Method
 			switch ca {
 			case "basic":
-				authMethods = []rtspauth.VerifyMethod{rtspauth.VerifyMethodBasic}
+				authMethods = []rtspauth.Method{rtspauth.MethodBasic}
 			case "digest":
-				authMethods = []rtspauth.VerifyMethod{rtspauth.VerifyMethodDigestMD5}
+				authMethods = []rtspauth.Method{rtspauth.MethodDigestMD5}
 			default:
-				authMethods = []rtspauth.VerifyMethod{rtspauth.VerifyMethodBasic, rtspauth.VerifyMethodDigestMD5}
+				authMethods = []rtspauth.Method{rtspauth.MethodBasic, rtspauth.MethodDigestMD5}
 			}
 
 			s := &rtsp.Server{
@@ -647,6 +650,8 @@ func TestServerRead(t *testing.T) {
 						RTPPacketsReceived:  list.Items[0].RTPPacketsReceived,
 						RTPPacketsSent:      list.Items[0].RTPPacketsSent,
 						RTCPPacketsSent:     list.Items[0].RTCPPacketsSent,
+						TransportProtocol:   new("TCP"),
+						TransportProfile:    new("AVP"),
 						Transport:           new("TCP"),
 						Profile:             new("AVP"),
 					},
@@ -664,7 +669,7 @@ func TestServerRedirect(t *testing.T) {
 			strm := &stream.Stream{
 				OrigDesc:          desc,
 				WriteQueueSize:    512,
-				RTPMaxPayloadSize: 1450,
+				UDPMaxPayloadSize: 1462,
 				Parent:            test.NilLogger,
 			}
 			err := strm.Initialize()
@@ -708,7 +713,7 @@ func TestServerRedirect(t *testing.T) {
 
 			s := &rtsp.Server{
 				Address:        "127.0.0.1:8557",
-				AuthMethods:    []rtspauth.VerifyMethod{rtspauth.VerifyMethodBasic},
+				AuthMethods:    []rtspauth.Method{rtspauth.MethodBasic},
 				ReadTimeout:    conf.Duration(10 * time.Second),
 				WriteTimeout:   conf.Duration(10 * time.Second),
 				WriteQueueSize: 512,

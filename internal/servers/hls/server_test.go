@@ -222,6 +222,7 @@ func TestServerIndexRedirectNoXSS(t *testing.T) {
 		{"double slash", "//double/slash", "/double/slash/"},
 		{"protocol-relative open redirect", "//evil.com", "/evil.com/"},
 		{"backslash bypass", "/%5Cevil.com", "/evil.com/"},
+		{"tab bypass", "/%09/evil.com", "/evil.com/"},
 	} {
 		t.Run(ca.name, func(t *testing.T) {
 			pm := &dummyPathManager{
@@ -355,7 +356,7 @@ func TestServerSessionSecretAfterMuxerClose(t *testing.T) {
 	strm := &stream.Stream{
 		OrigDesc:          desc,
 		WriteQueueSize:    512,
-		RTPMaxPayloadSize: 1450,
+		UDPMaxPayloadSize: 1462,
 		Parent:            test.NilLogger,
 	}
 	err := strm.Initialize()
@@ -429,7 +430,7 @@ func TestServerSessionExpiration(t *testing.T) {
 	strm := &stream.Stream{
 		OrigDesc:          desc,
 		WriteQueueSize:    512,
-		RTPMaxPayloadSize: 1450,
+		UDPMaxPayloadSize: 1462,
 		Parent:            test.NilLogger,
 	}
 	require.NoError(t, strm.Initialize())
@@ -507,7 +508,7 @@ func TestServerRead(t *testing.T) {
 				strm := &stream.Stream{
 					OrigDesc:          desc,
 					WriteQueueSize:    512,
-					RTPMaxPayloadSize: 1450,
+					UDPMaxPayloadSize: 1462,
 					ReplaceNTP:        false,
 					Parent:            test.NilLogger,
 				}
@@ -677,7 +678,7 @@ func TestServerDirectory(t *testing.T) {
 	strm := &stream.Stream{
 		OrigDesc:          desc,
 		WriteQueueSize:    512,
-		RTPMaxPayloadSize: 1450,
+		UDPMaxPayloadSize: 1462,
 		Parent:            test.NilLogger,
 	}
 	err := strm.Initialize()
@@ -746,7 +747,7 @@ func TestServerDynamicAlwaysRemux(t *testing.T) {
 	strm := &stream.Stream{
 		OrigDesc:          desc,
 		WriteQueueSize:    512,
-		RTPMaxPayloadSize: 1450,
+		UDPMaxPayloadSize: 1462,
 		Parent:            test.NilLogger,
 	}
 	err := strm.Initialize()
@@ -896,7 +897,7 @@ func TestServerNoSupportedCodecs(t *testing.T) {
 			strm := &stream.Stream{
 				OrigDesc:          desc,
 				WriteQueueSize:    512,
-				RTPMaxPayloadSize: 1450,
+				UDPMaxPayloadSize: 1462,
 				Parent:            test.NilLogger,
 			}
 			err := strm.Initialize()

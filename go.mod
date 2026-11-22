@@ -3,17 +3,17 @@ module github.com/bluenviron/mediamtx
 go 1.27.0
 
 require (
-	code.cloudfoundry.org/bytefmt v0.97.0
+	code.cloudfoundry.org/bytefmt v0.99.0
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/MicahParks/jwkset v0.11.4
-	github.com/MicahParks/keyfunc/v3 v3.9.1
+	github.com/MicahParks/keyfunc/v3 v3.9.2
 	github.com/abema/go-mp4 v1.7.4
 	github.com/alecthomas/kong v1.17.0
 	github.com/asticode/go-astits v1.17.0
-	github.com/bluenviron/gohlslib/v2 v2.4.7
-	github.com/bluenviron/gortmplib v1.0.5
-	github.com/bluenviron/gortsplib/v5 v5.6.8-0.20261108201035-ae44eea133a2
-	github.com/bluenviron/mediacommon/v2 v2.9.7
+	github.com/bluenviron/gohlslib/v2 v2.4.8
+	github.com/bluenviron/gortmplib v1.0.6
+	github.com/bluenviron/gortsplib/v5 v5.7.0
+	github.com/bluenviron/mediacommon/v2 v2.10.0
 	github.com/datarhei/gosrt v0.13.0
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/gin-contrib/pprof v1.5.8
@@ -42,11 +42,11 @@ require (
 	github.com/quic-go/webtransport-go v0.13.0
 	github.com/stretchr/testify v1.12.1
 	github.com/wlynxg/anet v0.0.5
-	golang.org/x/crypto v0.58.0
+	golang.org/x/crypto v0.59.0
 	golang.org/x/sync v0.25.0
 	golang.org/x/sys v0.50.0
 	golang.org/x/term v0.48.0
-	golang.org/x/text v0.43.0
+	golang.org/x/text v0.44.0
 )
 
 require (

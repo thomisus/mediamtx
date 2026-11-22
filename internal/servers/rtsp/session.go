@@ -182,7 +182,7 @@ func (s *session) onAnnounce(c *conn, ctx *gortsplib.ServerHandlerOnAnnounceCtx)
 	// CustomVerifyFunc prevents hashed credentials from working.
 	// Use it only when strictly needed.
 	var customVerifyFunc func(expectedUser, expectedPass string) bool
-	if slices.Contains(c.authMethods, rtspauth.VerifyMethodDigestMD5) {
+	if slices.Contains(c.authMethods, rtspauth.MethodDigestMD5) {
 		customVerifyFunc = func(expectedUser, expectedPass string) bool {
 			return c.rconn.VerifyCredentials(ctx.Request, expectedUser, expectedPass)
 		}
@@ -259,7 +259,7 @@ func (s *session) onSetup(c *conn, ctx *gortsplib.ServerHandlerOnSetupCtx,
 	// CustomVerifyFunc prevents hashed credentials from working.
 	// Use it only when strictly needed.
 	var customVerifyFunc func(expectedUser, expectedPass string) bool
-	if slices.Contains(c.authMethods, rtspauth.VerifyMethodDigestMD5) {
+	if slices.Contains(c.authMethods, rtspauth.MethodDigestMD5) {
 		customVerifyFunc = func(expectedUser, expectedPass string) bool {
 			return c.rconn.VerifyCredentials(ctx.Request, expectedUser, expectedPass)
 		}
@@ -532,6 +532,24 @@ func (s *session) apiItem() *defs.APIRTSPSession {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
+	transport := s.rsession.Transport()
+
+	transportProtocol := func() *string {
+		if transport == nil {
+			return nil
+		}
+		v := transport.Protocol.String()
+		return &v
+	}()
+
+	transportProfile := func() *string {
+		if transport == nil {
+			return nil
+		}
+		v := profileLabel(transport.Profile)
+		return &v
+	}()
+
 	return &defs.APIRTSPSession{
 		ID:         s.uuid,
 		Created:    s.created,
@@ -556,26 +574,14 @@ func (s *session) apiItem() *defs.APIRTSPSession {
 			}
 			return ""
 		}(),
-		Query:     s.rsession.Query(),
-		User:      s.user,
-		ExpiresAt: s.expiresAt,
-		UserAgent: s.userAgent,
-		Transport: func() *string {
-			transport := s.rsession.Transport()
-			if transport == nil {
-				return nil
-			}
-			v := transport.Protocol.String()
-			return &v
-		}(),
-		Profile: func() *string {
-			transport := s.rsession.Transport()
-			if transport == nil {
-				return nil
-			}
-			v := profileLabel(transport.Profile)
-			return &v
-		}(),
+		Query:             s.rsession.Query(),
+		User:              s.user,
+		ExpiresAt:         s.expiresAt,
+		UserAgent:         s.userAgent,
+		TransportProtocol: transportProtocol,
+		TransportProfile:  transportProfile,
+		Transport:         transportProtocol,
+		Profile:           transportProfile,
 		Conns: func() []uuid.UUID {
 			ret := []uuid.UUID{}
 

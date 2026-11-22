@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/bluenviron/mediacommon/v2/pkg/limitedreader"
 	"github.com/gin-gonic/gin"
 
 	"github.com/bluenviron/mediamtx/internal/conf"
@@ -21,6 +22,8 @@ func (a *API) onConfigPathsList(ctx *gin.Context) {
 	for i, key := range sortedKeys(c.Paths) {
 		data.Items[i] = *c.Paths[key]
 	}
+
+	data.Items = search(data.Items, ctx.Query("search"), func(p conf.Path) string { return p.Name })
 
 	data.ItemCount = len(data.Items)
 	pageCount, err := paginate(&data.Items, ctx.Query("itemsPerPage"), ctx.Query("page"))
@@ -59,7 +62,7 @@ func (a *API) onConfigPathsAdd(ctx *gin.Context) { //nolint:dupl
 	}
 
 	var p conf.OptionalPath
-	err := jsonwrapper.Decode(&customLimitReader{ctx.Request.Body, maxInboundConfigSize}, &p)
+	err := jsonwrapper.Decode(&limitedreader.Reader{R: ctx.Request.Body, N: maxInboundConfigSize}, &p)
 	if err != nil {
 		a.writeError(ctx, http.StatusBadRequest, err)
 		return
@@ -82,7 +85,7 @@ func (a *API) onConfigPathsPatch(ctx *gin.Context) { //nolint:dupl
 	}
 
 	var p conf.OptionalPath
-	err := jsonwrapper.Decode(&customLimitReader{ctx.Request.Body, maxInboundConfigSize}, &p)
+	err := jsonwrapper.Decode(&limitedreader.Reader{R: ctx.Request.Body, N: maxInboundConfigSize}, &p)
 	if err != nil {
 		a.writeError(ctx, http.StatusBadRequest, err)
 		return
@@ -105,7 +108,7 @@ func (a *API) onConfigPathsReplace(ctx *gin.Context) { //nolint:dupl
 	}
 
 	var p conf.OptionalPath
-	err := jsonwrapper.Decode(&customLimitReader{ctx.Request.Body, maxInboundConfigSize}, &p)
+	err := jsonwrapper.Decode(&limitedreader.Reader{R: ctx.Request.Body, N: maxInboundConfigSize}, &p)
 	if err != nil {
 		a.writeError(ctx, http.StatusBadRequest, err)
 		return

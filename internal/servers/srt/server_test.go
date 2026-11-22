@@ -34,7 +34,7 @@ func TestServerListenError(t *testing.T) {
 				Address:           "127.0.0.1:0",
 				ReadTimeout:       conf.Duration(time.Second),
 				WriteTimeout:      conf.Duration(time.Second),
-				UDPMaxPayloadSize: 1472,
+				UDPMaxPayloadSize: 1462,
 				Parent: &test.ServerParent{
 					OnFatalErrorImpl: func(ctx context.Context, err error) {
 						received <- err
@@ -101,7 +101,7 @@ func TestServerReadExpiration(t *testing.T) {
 	strm := &stream.Stream{
 		OrigDesc:          desc,
 		WriteQueueSize:    512,
-		RTPMaxPayloadSize: 1450,
+		UDPMaxPayloadSize: 1462,
 		Parent:            test.NilLogger,
 	}
 	require.NoError(t, strm.Initialize())
@@ -120,7 +120,7 @@ func TestServerReadExpiration(t *testing.T) {
 		Address:           "127.0.0.1:8890",
 		ReadTimeout:       conf.Duration(10 * time.Second),
 		WriteTimeout:      conf.Duration(10 * time.Second),
-		UDPMaxPayloadSize: 1472,
+		UDPMaxPayloadSize: 1462,
 		PathManager:       pathManager,
 		Parent:            test.NilLogger,
 	}
@@ -162,7 +162,7 @@ func TestServerPublishExpiration(t *testing.T) {
 		Address:           "127.0.0.1:8890",
 		ReadTimeout:       conf.Duration(10 * time.Second),
 		WriteTimeout:      conf.Duration(10 * time.Second),
-		UDPMaxPayloadSize: 1472,
+		UDPMaxPayloadSize: 1462,
 		PathManager:       pathManager,
 		Parent:            test.NilLogger,
 	}
@@ -279,7 +279,7 @@ func TestServerPublish(t *testing.T) {
 			strm = &stream.Stream{
 				OrigDesc:          req.Desc,
 				WriteQueueSize:    512,
-				RTPMaxPayloadSize: 1450,
+				UDPMaxPayloadSize: 1462,
 				Parent:            test.NilLogger,
 			}
 			err := strm.Initialize()
@@ -330,6 +330,7 @@ func TestServerPublish(t *testing.T) {
 
 	s := &Server{
 		Address:             "127.0.0.1:8890",
+		MinLatency:          conf.Duration(200 * time.Millisecond),
 		RTSPAddress:         "",
 		ReadTimeout:         conf.Duration(10 * time.Second),
 		WriteTimeout:        conf.Duration(10 * time.Second),
@@ -387,6 +388,7 @@ func TestServerPublish(t *testing.T) {
 
 	list, err := s.APIConnsList()
 	require.NoError(t, err)
+	require.Equal(t, uint64(200), list.Items[0].MsReceiveTsbPdDelay)
 	require.Equal(t, &defs.APISRTConnList{ //nolint:dupl
 		Items: []defs.APISRTConn{
 			{
@@ -470,7 +472,7 @@ func TestServerRead(t *testing.T) {
 	strm := &stream.Stream{
 		OrigDesc:          desc,
 		WriteQueueSize:    512,
-		RTPMaxPayloadSize: 1450,
+		UDPMaxPayloadSize: 1462,
 		Parent:            test.NilLogger,
 	}
 	err := strm.Initialize()
@@ -514,7 +516,7 @@ func TestServerRead(t *testing.T) {
 	require.NoError(t, err)
 	defer s.Close()
 
-	u := "srt://127.0.0.1:8890?streamid=read:teststream:myuser:mypass:param=value"
+	u := "srt://127.0.0.1:8890?streamid=read:teststream:myuser:mypass:param=value&latency=20"
 
 	srtConf := srt.DefaultConfig()
 	address, err := srtConf.UnmarshalURL(u)
@@ -576,6 +578,7 @@ func TestServerRead(t *testing.T) {
 
 	list, err := s.APIConnsList()
 	require.NoError(t, err)
+	require.Equal(t, uint64(20), list.Items[0].MsSendTsbPdDelay)
 	require.Equal(t, &defs.APISRTConnList{ //nolint:dupl
 		Items: []defs.APISRTConn{
 			{
@@ -674,7 +677,7 @@ func TestUDPBufferSize(t *testing.T) {
 				Address:           "127.0.0.1:0",
 				ReadTimeout:       conf.Duration(10 * time.Second),
 				WriteTimeout:      conf.Duration(10 * time.Second),
-				UDPMaxPayloadSize: 1472,
+				UDPMaxPayloadSize: 1462,
 				ExternalCmdPool:   externalCmdPool,
 				PathManager:       &test.PathManager{},
 				Parent:            test.NilLogger,
