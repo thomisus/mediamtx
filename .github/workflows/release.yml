@@ -155,3 +155,24 @@ jobs:
         env:
           DOCKER_USER: ${{ secrets.DOCKER_USER }}
           DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+
+  docker_github:
+    needs: binaries                                                                                                              
+    runs-on: ubuntu-24.04                                                                                                        
+    permissions:                                                                                                                 
+      contents: read                                                                                                             
+      packages: write                                                                                                            
+                                                                
+    steps:                                                                                                                       
+      - uses: actions/checkout@v7                                                                                                
+                                                                                                                                 
+      - uses: actions/download-artifact@v8                                                                                       
+        with:                                                   
+          name: binaries                                        
+          path: binaries                                        
+
+      - run: make github
+        env:
+          REGISTRY: ${{ env.REGISTRY }}                                                                                          
+          DOCKER_USER: ${{ github.actor }}
+          DOCKER_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
