@@ -157,19 +157,20 @@ jobs:
           DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
 
   docker_github:
-    needs: binaries                                                                                                              
+    needs: binaries
     runs-on: ubuntu-24.04                                                                                                        
-    permissions:                                                                                                                 
-      contents: read                                                                                                             
+    permissions:
+      contents: read
       packages: write                                                                                                            
-                                                                
-    steps:                                                                                                                       
+
+    steps:
+    
       - uses: actions/checkout@v7                                                                                                
-                                                                                                                                 
-      - uses: actions/download-artifact@v8                                                                                       
-        with:                                                   
+
+      - uses: actions/download-artifact@v8
+        with:
           name: binaries                                        
-          path: binaries                                        
+          path: binaries
 
       - run: make github
         env:
