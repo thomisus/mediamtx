@@ -169,6 +169,10 @@ func (dummyRTSPServer) APIConnsGet(uuid.UUID) (*defs.APIRTSPConn, error) {
 	panic("unused")
 }
 
+func (dummyRTSPServer) APIConnsKick(uuid.UUID) error {
+	panic("unused")
+}
+
 func (dummyRTSPServer) APISessionsList() (*defs.APIRTSPSessionList, error) {
 	return &defs.APIRTSPSessionList{
 		ItemCount: 1,
@@ -458,6 +462,10 @@ func (emptyRTSPServer) APIConnsGet(uuid.UUID) (*defs.APIRTSPConn, error) {
 	panic("unused")
 }
 
+func (emptyRTSPServer) APIConnsKick(uuid.UUID) error {
+	panic("unused")
+}
+
 func (emptyRTSPServer) APISessionsList() (*defs.APIRTSPSessionList, error) {
 	return &defs.APIRTSPSessionList{}, nil
 }
@@ -610,6 +618,7 @@ func TestMetrics(t *testing.T) {
 			"paths_bytes_sent{name=\"mypath\",state=\"ready\"} 456\n"+
 			"\n"+
 			"# HLS sessions\n"+
+			"# The id label is deprecated.\n"+
 			"# The remoteAddr label is deprecated.\n"+
 			"hls_sessions{id=\"18294761-f9d1-4ea9-9a35-fe265b62eb41\",path=\"mypath\","+
 			"remoteAddr=\"124.5.5.5:34542\"} 1\n"+
@@ -625,6 +634,7 @@ func TestMetrics(t *testing.T) {
 			"hls_muxers_bytes_sent{name=\"mypath\"} 789\n"+
 			"\n"+
 			"# RTSP connections\n"+
+			"# The id label is deprecated.\n"+
 			"rtsp_conns{id=\"18294761-f9d1-4ea9-9a35-fe265b62eb41\"} 1\n"+
 			"rtsp_conns_inbound_bytes{id=\"18294761-f9d1-4ea9-9a35-fe265b62eb41\"} 123\n"+
 			"rtsp_conns_outbound_bytes{id=\"18294761-f9d1-4ea9-9a35-fe265b62eb41\"} 456\n"+
@@ -634,6 +644,7 @@ func TestMetrics(t *testing.T) {
 			"rtsp_conns_bytes_sent{id=\"18294761-f9d1-4ea9-9a35-fe265b62eb41\"} 456\n"+
 			"\n"+
 			"# RTSP sessions\n"+
+			"# The id label is deprecated.\n"+
 			"# The remoteAddr label is deprecated.\n"+
 			"rtsp_sessions{id=\"124b22ce-9c34-4387-b045-44caf98049f7\",path=\"mypath\","+
 			"remoteAddr=\"124.5.5.5:34542\",state=\"publish\"} 1\n"+
@@ -685,6 +696,7 @@ func TestMetrics(t *testing.T) {
 			"remoteAddr=\"124.5.5.5:34542\",state=\"publish\"} 456\n"+
 			"\n"+
 			"# RTSPS connections\n"+
+			"# The id label is deprecated.\n"+
 			"rtsps_conns{id=\"18294761-f9d1-4ea9-9a35-fe265b62eb41\"} 1\n"+
 			"rtsps_conns_inbound_bytes{id=\"18294761-f9d1-4ea9-9a35-fe265b62eb41\"} 123\n"+
 			"rtsps_conns_outbound_bytes{id=\"18294761-f9d1-4ea9-9a35-fe265b62eb41\"} 456\n"+
@@ -694,6 +706,7 @@ func TestMetrics(t *testing.T) {
 			"rtsps_conns_bytes_sent{id=\"18294761-f9d1-4ea9-9a35-fe265b62eb41\"} 456\n"+
 			"\n"+
 			"# RTSPS sessions\n"+
+			"# The id label is deprecated.\n"+
 			"# The remoteAddr label is deprecated.\n"+
 			"rtsps_sessions{id=\"124b22ce-9c34-4387-b045-44caf98049f7\",path=\"mypath\","+
 			"remoteAddr=\"124.5.5.5:34542\",state=\"publish\"} 1\n"+
@@ -745,6 +758,7 @@ func TestMetrics(t *testing.T) {
 			"remoteAddr=\"124.5.5.5:34542\",state=\"publish\"} 456\n"+
 			"\n"+
 			"# RTMP connections\n"+
+			"# The id label is deprecated.\n"+
 			"# The remoteAddr label is deprecated.\n"+
 			"rtmp_conns{id=\"9a07afe4-fc07-4c9b-be6e-6255720c36d0\",path=\"mypath\","+
 			"remoteAddr=\"3.3.3.3:5678\",state=\"read\"} 1\n"+
@@ -762,6 +776,7 @@ func TestMetrics(t *testing.T) {
 			"remoteAddr=\"3.3.3.3:5678\",state=\"read\"} 456\n"+
 			"\n"+
 			"# RTMPS connections\n"+
+			"# The id label is deprecated.\n"+
 			"# The remoteAddr label is deprecated.\n"+
 			"rtmps_conns{id=\"9a07afe4-fc07-4c9b-be6e-6255720c36d0\",path=\"mypath\","+
 			"remoteAddr=\"3.3.3.3:5678\",state=\"read\"} 1\n"+
@@ -779,6 +794,7 @@ func TestMetrics(t *testing.T) {
 			"remoteAddr=\"3.3.3.3:5678\",state=\"read\"} 456\n"+
 			"\n"+
 			"# SRT connections\n"+
+			"# The id label is deprecated.\n"+
 			"# The remoteAddr label is deprecated.\n"+
 			"srt_conns{id=\"a0b1c2d3-e4f5-6789-abcd-ef0123456789\",path=\"mypath\","+
 			"remoteAddr=\"5.5.5.5:4321\",state=\"publish\"} 1\n"+
@@ -892,6 +908,7 @@ func TestMetrics(t *testing.T) {
 			"remoteAddr=\"5.5.5.5:4321\",state=\"publish\"} 5\n"+
 			"\n"+
 			"# WebRTC sessions\n"+
+			"# The id label is deprecated.\n"+
 			"# The remoteAddr label is deprecated.\n"+
 			"webrtc_sessions{id=\"f47ac10b-58cc-4372-a567-0e02b2c3d479\",path=\"mypath\","+
 			"remoteAddr=\"127.0.0.1:3455\",state=\"read\"} 1\n"+
@@ -933,6 +950,7 @@ func TestMetrics(t *testing.T) {
 			"remoteAddr=\"127.0.0.1:3455\",state=\"read\"} 456\n"+
 			"\n"+
 			"# MoQ sessions\n"+
+			"# The id label is deprecated.\n"+
 			"# The remoteAddr label is deprecated.\n"+
 			"moq_sessions{id=\"b47ac10b-58cc-4372-a567-0e02b2c3d479\",path=\"mypath\","+
 			"remoteAddr=\"127.0.0.2:3456\",state=\"publish\"} 1\n"+
@@ -990,6 +1008,7 @@ func TestZeroMetricsFallback(t *testing.T) {
 			"paths_readers 0\n"+
 			"\n"+
 			"# HLS sessions\n"+
+			"# The id label is deprecated.\n"+
 			"# The remoteAddr label is deprecated.\n"+
 			"hls_sessions 0\n"+
 			`hls_sessions_outbound_bytes 0`+"\n"+
@@ -1003,6 +1022,7 @@ func TestZeroMetricsFallback(t *testing.T) {
 			"hls_muxers_bytes_sent 0\n"+
 			"\n"+
 			"# RTSP connections\n"+
+			"# The id label is deprecated.\n"+
 			"rtsp_conns 0\n"+
 			"rtsp_conns_inbound_bytes 0\n"+
 			"rtsp_conns_outbound_bytes 0\n"+
@@ -1012,6 +1032,7 @@ func TestZeroMetricsFallback(t *testing.T) {
 			"rtsp_conns_bytes_sent 0\n"+
 			"\n"+
 			"# RTSP sessions\n"+
+			"# The id label is deprecated.\n"+
 			"# The remoteAddr label is deprecated.\n"+
 			"rtsp_sessions 0\n"+
 			"rtsp_sessions_inbound_bytes 0\n"+
@@ -1040,6 +1061,7 @@ func TestZeroMetricsFallback(t *testing.T) {
 			"rtsp_sessions_rtcp_packets_in_error 0\n"+
 			"\n"+
 			"# SRT connections\n"+
+			"# The id label is deprecated.\n"+
 			"# The remoteAddr label is deprecated.\n"+
 			"srt_conns 0\n"+
 			"srt_conns_packets_sent 0\n"+
@@ -1098,6 +1120,7 @@ func TestZeroMetricsFallback(t *testing.T) {
 			"srt_conns_outbound_frames_discarded 0\n"+
 			"\n"+
 			"# WebRTC sessions\n"+
+			"# The id label is deprecated.\n"+
 			"# The remoteAddr label is deprecated.\n"+
 			"webrtc_sessions 0\n"+
 			"webrtc_sessions_inbound_bytes 0\n"+
@@ -1121,6 +1144,7 @@ func TestZeroMetricsFallback(t *testing.T) {
 			"webrtc_sessions_rtcp_packets_sent 0\n"+
 			"\n"+
 			"# MoQ sessions\n"+
+			"# The id label is deprecated.\n"+
 			"# The remoteAddr label is deprecated.\n"+
 			"moq_sessions 0\n"+
 			"moq_sessions_inbound_bytes 0\n"+
@@ -1159,6 +1183,7 @@ func TestForwardMetrics(t *testing.T) {
 
 	require.Equal(t,
 		"# Forward destinations\n"+
+			"# The id label is deprecated.\n"+
 			"# The forward_dests protocol label is deprecated and superseded by type.\n"+
 			"forward_dests{id=\"5b9a82ca-3cb8-46d1-a80b-6b716ccfcafe\","+
 			"path=\"mypath\",pos=\"1\",protocol=\"rtmp\",state=\"forwarding\",type=\"rtmp\"} 1\n"+
@@ -1276,6 +1301,7 @@ func TestFilter(t *testing.T) {
 			case "hls_session":
 				require.Equal(t,
 					"# HLS sessions\n"+
+						"# The id label is deprecated.\n"+
 						"# The remoteAddr label is deprecated.\n"+
 						`hls_sessions{id="18294761-f9d1-4ea9-9a35-fe265b62eb41",path="mypath",`+
 						`remoteAddr="124.5.5.5:34542"} 1`+"\n"+
@@ -1287,6 +1313,7 @@ func TestFilter(t *testing.T) {
 			case "rtsp_conn":
 				require.Equal(t,
 					"# RTSP connections\n"+
+						"# The id label is deprecated.\n"+
 						`rtsp_conns{id="18294761-f9d1-4ea9-9a35-fe265b62eb41"} 1`+"\n"+
 						`rtsp_conns_inbound_bytes{id="18294761-f9d1-4ea9-9a35-fe265b62eb41"} 123`+"\n"+
 						`rtsp_conns_outbound_bytes{id="18294761-f9d1-4ea9-9a35-fe265b62eb41"} 456`+"\n"+
@@ -1299,6 +1326,7 @@ func TestFilter(t *testing.T) {
 			case "rtsp_session": //nolint:dupl
 				require.Equal(t,
 					"# RTSP sessions\n"+
+						"# The id label is deprecated.\n"+
 						"# The remoteAddr label is deprecated.\n"+
 						`rtsp_sessions{id="124b22ce-9c34-4387-b045-44caf98049f7",`+
 						`path="mypath",remoteAddr="124.5.5.5:34542",state="publish"} 1`+"\n"+
@@ -1353,6 +1381,7 @@ func TestFilter(t *testing.T) {
 			case "rtsps_conn":
 				require.Equal(t,
 					"# RTSPS connections\n"+
+						"# The id label is deprecated.\n"+
 						`rtsps_conns{id="18294761-f9d1-4ea9-9a35-fe265b62eb41"} 1`+"\n"+
 						`rtsps_conns_inbound_bytes{id="18294761-f9d1-4ea9-9a35-fe265b62eb41"} 123`+"\n"+
 						`rtsps_conns_outbound_bytes{id="18294761-f9d1-4ea9-9a35-fe265b62eb41"} 456`+"\n"+
@@ -1365,6 +1394,7 @@ func TestFilter(t *testing.T) {
 			case "rtsps_session": //nolint:dupl
 				require.Equal(t,
 					"# RTSPS sessions\n"+
+						"# The id label is deprecated.\n"+
 						"# The remoteAddr label is deprecated.\n"+
 						`rtsps_sessions{id="124b22ce-9c34-4387-b045-44caf98049f7",`+
 						`path="mypath",remoteAddr="124.5.5.5:34542",state="publish"} 1`+"\n"+
@@ -1419,6 +1449,7 @@ func TestFilter(t *testing.T) {
 			case "rtmp_conn":
 				require.Equal(t,
 					"# RTMP connections\n"+
+						"# The id label is deprecated.\n"+
 						"# The remoteAddr label is deprecated.\n"+
 						"rtmp_conns{id=\"9a07afe4-fc07-4c9b-be6e-6255720c36d0\",path=\"mypath\","+
 						"remoteAddr=\"3.3.3.3:5678\",state=\"read\"} 1\n"+
@@ -1439,6 +1470,7 @@ func TestFilter(t *testing.T) {
 			case "rtmps_conn":
 				require.Equal(t,
 					"# RTMPS connections\n"+
+						"# The id label is deprecated.\n"+
 						"# The remoteAddr label is deprecated.\n"+
 						`rtmps_conns{id="9a07afe4-fc07-4c9b-be6e-6255720c36d0",`+
 						`path="mypath",remoteAddr="3.3.3.3:5678",state="read"} 1`+"\n"+
@@ -1459,6 +1491,7 @@ func TestFilter(t *testing.T) {
 			case "srt_conn":
 				require.Equal(t,
 					"# SRT connections\n"+ //nolint:dupl
+						"# The id label is deprecated.\n"+
 						"# The remoteAddr label is deprecated.\n"+
 						`srt_conns{id="a0b1c2d3-e4f5-6789-abcd-ef0123456789",`+
 						`path="mypath",remoteAddr="5.5.5.5:4321",state="publish"} 1`+"\n"+
@@ -1575,6 +1608,7 @@ func TestFilter(t *testing.T) {
 			case "webrtc_session":
 				require.Equal(t,
 					"# WebRTC sessions\n"+
+						"# The id label is deprecated.\n"+
 						"# The remoteAddr label is deprecated.\n"+
 						`webrtc_sessions{id="f47ac10b-58cc-4372-a567-0e02b2c3d479",`+
 						`path="mypath",remoteAddr="127.0.0.1:3455",state="read"} 1`+"\n"+
@@ -1619,6 +1653,7 @@ func TestFilter(t *testing.T) {
 			case "moq_session":
 				require.Equal(t,
 					"# MoQ sessions\n"+
+						"# The id label is deprecated.\n"+
 						"# The remoteAddr label is deprecated.\n"+
 						`moq_sessions{id="b47ac10b-58cc-4372-a567-0e02b2c3d479",`+
 						`path="mypath",remoteAddr="127.0.0.2:3456",state="publish"} 1`+"\n"+
@@ -1702,6 +1737,7 @@ func TestFilterByType(t *testing.T) {
 			case "rtmp_conns":
 				require.Equal(t,
 					"# RTMP connections\n"+
+						"# The id label is deprecated.\n"+
 						"# The remoteAddr label is deprecated.\n"+
 						"rtmp_conns{id=\"9a07afe4-fc07-4c9b-be6e-6255720c36d0\",path=\"mypath\","+
 						"remoteAddr=\"3.3.3.3:5678\",state=\"read\"} 1\n"+
@@ -1722,6 +1758,7 @@ func TestFilterByType(t *testing.T) {
 			case "rtmps_conns":
 				require.Equal(t,
 					"# RTMPS connections\n"+
+						"# The id label is deprecated.\n"+
 						"# The remoteAddr label is deprecated.\n"+
 						"rtmps_conns{id=\"9a07afe4-fc07-4c9b-be6e-6255720c36d0\",path=\"mypath\","+
 						"remoteAddr=\"3.3.3.3:5678\",state=\"read\"} 1\n"+
@@ -1742,6 +1779,7 @@ func TestFilterByType(t *testing.T) {
 			case "webrtc_sessions":
 				require.Equal(t,
 					"# WebRTC sessions\n"+
+						"# The id label is deprecated.\n"+
 						"# The remoteAddr label is deprecated.\n"+
 						"webrtc_sessions{id=\"f47ac10b-58cc-4372-a567-0e02b2c3d479\",path=\"mypath\","+
 						"remoteAddr=\"127.0.0.1:3455\",state=\"read\"} 1\n"+
@@ -1889,7 +1927,7 @@ func TestMetricsConcurrentSettersAndReads(t *testing.T) {
 	readers.Wait()
 }
 
-func BenchmarkTags(b *testing.B) {
+func BenchmarkFormatLabels(b *testing.B) {
 	m := map[string]string{
 		"id":         "124b22ce-9c34-4387-b045-44caf98049f7",
 		"state":      "publish",
@@ -1898,12 +1936,12 @@ func BenchmarkTags(b *testing.B) {
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		tags(m)
+		formatLabels(m)
 	}
 }
 
 func BenchmarkMetric(b *testing.B) {
-	ta := tags(map[string]string{
+	labels := formatLabels(map[string]string{
 		"id":         "124b22ce-9c34-4387-b045-44caf98049f7",
 		"state":      "publish",
 		"path":       "mypath",
@@ -1913,7 +1951,7 @@ func BenchmarkMetric(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		out.Reset()
-		metric(&out, "rtsp_sessions_inbound_bytes", ta, 123)
+		metric(&out, "rtsp_sessions_inbound_bytes", labels, 123)
 	}
 }
 

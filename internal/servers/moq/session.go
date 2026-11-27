@@ -22,13 +22,16 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/bluenviron/mediamtx/internal/auth"
+	"github.com/bluenviron/mediamtx/internal/conf"
 	"github.com/bluenviron/mediamtx/internal/defs"
 	"github.com/bluenviron/mediamtx/internal/logger"
 	"github.com/bluenviron/mediamtx/internal/protocols/moq"
 	"github.com/bluenviron/mediamtx/internal/protocols/moq/catalog"
+	"github.com/bluenviron/mediamtx/internal/protocols/moq/conn"
 	"github.com/bluenviron/mediamtx/internal/protocols/moq/controlmessage"
 	"github.com/bluenviron/mediamtx/internal/protocols/moq/parameter"
 	"github.com/bluenviron/mediamtx/internal/protocols/moq/property"
+	"github.com/bluenviron/mediamtx/internal/protocols/moq/rawconn"
 	"github.com/bluenviron/mediamtx/internal/protocols/moq/reorderer"
 	"github.com/bluenviron/mediamtx/internal/protocols/moq/subgroup"
 	"github.com/bluenviron/mediamtx/internal/protocols/moq/version"
@@ -86,17 +89,19 @@ type sessionParent interface {
 }
 
 type session struct {
-	quicConn    *quic.Conn
-	wtSession   *webtransport.Session
-	version     version.Version
-	wg          *sync.WaitGroup
-	pathName    string
-	query       string
-	userAgent   string
-	pathManager serverPathManager
-	parent      sessionParent
+	quicConn     *quic.Conn
+	wtSession    *webtransport.Session
+	version      version.Version
+	wg           *sync.WaitGroup
+	pathName     string
+	query        string
+	userAgent    string
+	readTimeout  conf.Duration
+	writeTimeout conf.Duration
+	pathManager  serverPathManager
+	parent       sessionParent
 
-	conn            *moq.Conn
+	conn            *conn.Conn
 	ctx             context.Context
 	ctxCancel       context.CancelFunc
 	created         time.Time
@@ -121,9 +126,9 @@ type session struct {
 
 func (s *session) initialize() {
 	if s.quicConn != nil {
-		s.conn = &moq.Conn{Raw: &moq.RawConnQUIC{Conn: s.quicConn}, Server: true, Log: s, Version: s.version}
+		s.conn = &conn.Conn{Raw: &rawconn.QUIC{Conn: s.quicConn}, Server: true, Log: s, Version: s.version}
 	} else {
-		s.conn = &moq.Conn{Raw: &moq.RawConnWebTransport{Session: s.wtSession}, Server: true, Log: s, Version: s.version}
+		s.conn = &conn.Conn{Raw: &rawconn.WebTransport{Session: s.wtSession}, Server: true, Log: s, Version: s.version}
 	}
 
 	s.ctx, s.ctxCancel = context.WithCancel(context.Background())
@@ -221,6 +226,7 @@ func (s *session) runSetupWriter() error {
 	}
 	defer wstream.Close() //nolint:errcheck
 
+	wstream.SetWriteDeadline(time.Now().Add(time.Duration(s.writeTimeout))) //nolint:errcheck
 	return wstream.WriteMessage(&controlmessage.Setup{})
 }
 
@@ -250,7 +256,8 @@ func (s *session) runBidiStreamAcceptor(errGroupCtx context.Context, errGroup *e
 	}
 }
 
-func (s *session) runUniStream(errGroupCtx context.Context, stream *moq.IncomingUniStream) error {
+func (s *session) runUniStream(errGroupCtx context.Context, stream *conn.IncomingUniStream) error {
+	stream.SetReadDeadline(time.Now().Add(time.Duration(s.readTimeout))) //nolint:errcheck
 	isSubGroup, err := stream.IsSubGroup()
 	if err != nil {
 		return err
@@ -263,11 +270,12 @@ func (s *session) runUniStream(errGroupCtx context.Context, stream *moq.Incoming
 	return s.onUniMessage(stream)
 }
 
-func (s *session) onUniMessage(stream *moq.IncomingUniStream) error {
+func (s *session) onUniMessage(stream *conn.IncomingUniStream) error {
 	msg, err := stream.ReadMessage()
 	if err != nil {
 		return err
 	}
+	stream.SetReadDeadline(time.Time{}) //nolint:errcheck
 
 	switch m := msg.(type) {
 	case *controlmessage.Setup:
@@ -342,16 +350,18 @@ func (s *session) processSetupMessage(m *controlmessage.Setup) error {
 func (s *session) runBidiStream(
 	errGroupCtx context.Context,
 	errGroup *errgroup.Group,
-	wstream *moq.ControlStream,
+	wstream *conn.ControlStream,
 ) error {
 	if s.conn.Version == version.Draft16 {
 		select {
 		case <-s.setupReceived:
 		default:
+			wstream.SetReadDeadline(time.Now().Add(time.Duration(s.readTimeout))) //nolint:errcheck
 			msg, err := wstream.ReadMessage()
 			if err != nil {
 				return err
 			}
+			wstream.SetReadDeadline(time.Time{}) //nolint:errcheck
 
 			setupMsg, ok := msg.(*controlmessage.ClientSetup)
 			if !ok {
@@ -363,6 +373,7 @@ func (s *session) runBidiStream(
 				return err
 			}
 
+			wstream.SetWriteDeadline(time.Now().Add(time.Duration(s.writeTimeout))) //nolint:errcheck
 			err = wstream.WriteMessage(&controlmessage.ServerSetup{})
 			if err != nil {
 				return err
@@ -379,10 +390,12 @@ func (s *session) runBidiStream(
 		return fmt.Errorf("terminated")
 	}
 
+	wstream.SetReadDeadline(time.Now().Add(time.Duration(s.readTimeout))) //nolint:errcheck
 	msg, err := wstream.ReadMessage()
 	if err != nil {
 		return err
 	}
+	wstream.SetReadDeadline(time.Time{}) //nolint:errcheck
 
 	switch m := msg.(type) {
 	case *controlmessage.Subscribe:
@@ -411,10 +424,28 @@ func (s *session) getPathNameAndQuery() (string, string) {
 	return s.pathName, s.query
 }
 
+func (s *session) rejectRequest(wstream *conn.ControlStream, code controlmessage.RequestErrorCode, err error) error {
+	wstream.SetWriteDeadline(time.Now().Add(time.Duration(s.writeTimeout))) //nolint:errcheck
+	if writeErr := wstream.WriteMessage(&controlmessage.RequestError{
+		Code:   code,
+		Reason: err.Error(),
+	}); writeErr != nil {
+		return err
+	}
+
+	// Give the peer time to receive the error before closing the session.
+	wstream.Close() //nolint:errcheck
+	if deadlineErr := wstream.SetReadDeadline(time.Now().Add(time.Duration(s.readTimeout))); deadlineErr == nil {
+		wstream.Drain() //nolint:errcheck
+	}
+
+	return err
+}
+
 func (s *session) onSubscribeCatalog(
 	errGroupCtx context.Context,
 	errGroup *errgroup.Group,
-	wstream *moq.ControlStream,
+	wstream *conn.ControlStream,
 	m *controlmessage.Subscribe,
 ) error {
 	s.mutex.Lock()
@@ -451,16 +482,7 @@ func (s *session) onSubscribeCatalog(
 			code = controlmessage.RequestErrorCodeNotSupported
 		}
 
-		wstream.WriteMessage(&controlmessage.RequestError{ //nolint:errcheck
-			Code:   code,
-			Reason: err.Error(),
-		})
-
-		// wait for the client to read the error
-		wstream.Close() //nolint:errcheck
-		wstream.Drain() //nolint:errcheck
-
-		return err
+		return s.rejectRequest(wstream, code, err)
 	}
 
 	if addRes.AuthRes.ExpiresAt != nil {
@@ -490,6 +512,7 @@ func (s *session) onSubscribeCatalog(
 
 	s.Log(logger.Info, "is reading from path %s", pathName)
 
+	wstream.SetWriteDeadline(time.Now().Add(time.Duration(s.writeTimeout))) //nolint:errcheck
 	err = wstream.WriteMessage(&controlmessage.SubscribeOk{TrackAlias: m.RequestID})
 	if err != nil {
 		return err
@@ -506,6 +529,7 @@ func (s *session) onSubscribeCatalog(
 	}
 	defer dataWStream.Close() //nolint:errcheck
 
+	dataWStream.SetWriteDeadline(time.Now().Add(time.Duration(s.writeTimeout))) //nolint:errcheck
 	err = dataWStream.WriteSubGroup(&subgroup.SubGroup{
 		Header: subgroup.Header{
 			HasProperties: false,
@@ -529,7 +553,7 @@ func (s *session) onSubscribeCatalog(
 
 func (s *session) onSubscribeTrack(
 	errGroupCtx context.Context,
-	wstream *moq.ControlStream,
+	wstream *conn.ControlStream,
 	m *controlmessage.Subscribe,
 ) error {
 	trackID, err := strconv.Atoi(m.TrackName)
@@ -586,6 +610,7 @@ func (s *session) onSubscribeTrack(
 		}
 		groupID++
 
+		wstream.SetWriteDeadline(time.Now().Add(time.Duration(s.writeTimeout))) //nolint:errcheck
 		err2 = wstream.WriteSubGroup(sg)
 		if err2 == nil {
 			s.outboundBytes.Add(uint64(len(payload)))
@@ -598,6 +623,7 @@ func (s *session) onSubscribeTrack(
 	s.stream.AddReader(r)
 	defer s.stream.RemoveReader(r)
 
+	wstream.SetWriteDeadline(time.Now().Add(time.Duration(s.writeTimeout))) //nolint:errcheck
 	err = wstream.WriteMessage(&controlmessage.SubscribeOk{TrackAlias: m.RequestID})
 	if err != nil {
 		return err
@@ -626,7 +652,7 @@ func (s *session) onSubscribeTrack(
 func (s *session) onPublishCatalog(
 	errGroupCtx context.Context,
 	errGroup *errgroup.Group,
-	wstream *moq.ControlStream,
+	wstream *conn.ControlStream,
 	m *controlmessage.Publish,
 ) error {
 	s.mutex.Lock()
@@ -645,7 +671,7 @@ func (s *session) onPublishCatalog(
 
 		medias, writeFuncs, err := moq.ToStream(cat, &subStream)
 		if err != nil {
-			return err
+			return s.rejectRequest(wstream, controlmessage.RequestErrorCodeUninterested, err)
 		}
 
 		s.inboundTracks = make(map[uint64]*inboundTrack)
@@ -689,16 +715,7 @@ func (s *session) onPublishCatalog(
 				code = controlmessage.RequestErrorCodeUninterested
 			}
 
-			wstream.WriteMessage(&controlmessage.RequestError{ //nolint:errcheck
-				Code:   code,
-				Reason: err.Error(),
-			})
-
-			// wait for the client to read the error
-			wstream.Close() //nolint:errcheck
-			wstream.Drain() //nolint:errcheck
-
-			return err
+			return s.rejectRequest(wstream, code, err)
 		}
 
 		if addRes.AuthRes.ExpiresAt != nil {
@@ -736,6 +753,7 @@ func (s *session) onPublishCatalog(
 		ack = &controlmessage.RequestOk{}
 	}
 
+	wstream.SetWriteDeadline(time.Now().Add(time.Duration(s.writeTimeout))) //nolint:errcheck
 	err := wstream.WriteMessage(ack)
 	if err != nil {
 		return err
@@ -747,7 +765,7 @@ func (s *session) onPublishCatalog(
 	return fmt.Errorf("PUBLISH catalog stream closed")
 }
 
-func (s *session) onPublishTrack(wstream *moq.ControlStream) error {
+func (s *session) onPublishTrack(wstream *conn.ControlStream) error {
 	s.mutex.Lock()
 	if s.state != defs.APIMoQSessionStatePublish {
 		s.mutex.Unlock()
@@ -762,6 +780,7 @@ func (s *session) onPublishTrack(wstream *moq.ControlStream) error {
 		ack = &controlmessage.RequestOk{}
 	}
 
+	wstream.SetWriteDeadline(time.Now().Add(time.Duration(s.writeTimeout))) //nolint:errcheck
 	err := wstream.WriteMessage(ack)
 	if err != nil {
 		return err
@@ -773,7 +792,7 @@ func (s *session) onPublishTrack(wstream *moq.ControlStream) error {
 	return fmt.Errorf("PUBLISH track stream closed")
 }
 
-func (s *session) onUniSubGroup(errGroupCtx context.Context, r *moq.IncomingUniStream) error {
+func (s *session) onUniSubGroup(errGroupCtx context.Context, r *conn.IncomingUniStream) error {
 	sg, err := r.ReadSubGroup()
 	if err != nil {
 		return err
@@ -786,7 +805,7 @@ func (s *session) onUniSubGroup(errGroupCtx context.Context, r *moq.IncomingUniS
 	return s.onDataTrack(errGroupCtx, r, sg)
 }
 
-func (s *session) onDataCatalog(r *moq.IncomingUniStream, sg *subgroup.SubGroup) error {
+func (s *session) onDataCatalog(r *conn.IncomingUniStream, sg *subgroup.SubGroup) error {
 	var cat catalog.Catalog
 	err := json.Unmarshal(sg.Objects[0].Payload, &cat)
 	if err != nil {
@@ -803,11 +822,12 @@ func (s *session) onDataCatalog(r *moq.IncomingUniStream, sg *subgroup.SubGroup)
 		return fmt.Errorf("catalog already received")
 	}
 
-	r.Drain() //nolint:errcheck
+	r.SetReadDeadline(time.Now().Add(time.Duration(s.readTimeout))) //nolint:errcheck
+	r.Drain()                                                       //nolint:errcheck
 	return nil
 }
 
-func (s *session) onDataTrack(errGroupCtx context.Context, r *moq.IncomingUniStream, sg *subgroup.SubGroup) error {
+func (s *session) onDataTrack(errGroupCtx context.Context, r *conn.IncomingUniStream, sg *subgroup.SubGroup) error {
 	select {
 	case <-s.publishReady:
 	case <-errGroupCtx.Done():
@@ -828,7 +848,8 @@ func (s *session) onDataTrack(errGroupCtx context.Context, r *moq.IncomingUniStr
 		return err
 	}
 
-	r.Drain() //nolint:errcheck
+	r.SetReadDeadline(time.Now().Add(time.Duration(s.readTimeout))) //nolint:errcheck
+	r.Drain()                                                       //nolint:errcheck
 	return nil
 }
 

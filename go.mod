@@ -5,7 +5,7 @@ go 1.27.0
 require (
 	code.cloudfoundry.org/bytefmt v0.99.0
 	github.com/Masterminds/semver/v3 v3.5.0
-	github.com/MicahParks/jwkset v0.11.4
+	github.com/MicahParks/jwkset v0.12.0
 	github.com/MicahParks/keyfunc/v3 v3.9.2
 	github.com/abema/go-mp4 v1.7.4
 	github.com/alecthomas/kong v1.17.0
@@ -27,7 +27,7 @@ require (
 	github.com/gookit/color v1.6.3
 	github.com/gorilla/websocket v1.5.3
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
-	github.com/matthewhartstonge/argon2 v1.6.4
+	github.com/matthewhartstonge/argon2 v1.6.5
 	github.com/minio/selfupdate v0.6.0
 	github.com/pion/ice/v4 v4.4.9
 	github.com/pion/interceptor v0.1.51
@@ -35,8 +35,8 @@ require (
 	github.com/pion/rtcp v1.2.20
 	github.com/pion/rtp v1.10.6
 	github.com/pion/sdp/v3 v3.0.20
-	github.com/pion/transport/v5 v5.1.5
-	github.com/pion/webrtc/v4 v4.2.26
+	github.com/pion/transport/v5 v5.1.6
+	github.com/pion/webrtc/v4 v4.2.29
 	github.com/pires/go-proxyproto v0.16.0
 	github.com/quic-go/quic-go v0.64.1
 	github.com/quic-go/webtransport-go v0.13.0
@@ -81,11 +81,11 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/pelletier/go-toml/v2 v2.4.3 // indirect
-	github.com/pion/datachannel v1.6.3 // indirect
-	github.com/pion/dtls/v3 v3.1.15 // indirect
+	github.com/pion/datachannel v1.6.4 // indirect
+	github.com/pion/dtls/v3 v3.1.16 // indirect
 	github.com/pion/mdns/v2 v2.2.2 // indirect
 	github.com/pion/randutil v0.1.0 // indirect
-	github.com/pion/sctp v1.12.0 // indirect
+	github.com/pion/sctp v1.12.1 // indirect
 	github.com/pion/srtp/v3 v3.1.3 // indirect
 	github.com/pion/stun/v4 v4.0.1 // indirect
 	github.com/pion/turn/v5 v5.1.3 // indirect
